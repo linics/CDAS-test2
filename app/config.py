@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     database_url: str = Field(
         default="sqlite:///./storage/cdas.db", description="SQLAlchemy 数据库 URL"
     )
+    documents_dir: Path = Field(
+        default=Path("./storage/documents"), description="上传文件存储目录"
+    )
     chroma_persist_dir: Path = Field(
         default=Path("./storage/chroma"), description="Chroma 持久化目录"
     )
@@ -41,4 +44,3 @@ def get_settings() -> Settings:
     """缓存后的全局配置实例。"""
 
     return Settings()
-
