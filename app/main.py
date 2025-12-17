@@ -4,6 +4,7 @@ from fastapi import FastAPI
 
 from app.api.agents import router as agents_router
 from app.api.documents import router as documents_router
+from app.api.frontend import router as frontend_router
 from app.config import get_settings
 from app.db import Base, engine
 from app.models import Assignment, Document, ProjectGroup, Submission
@@ -27,6 +28,7 @@ def create_app() -> FastAPI:
 
     app.include_router(documents_router, prefix="/api")
     app.include_router(agents_router, prefix="/api")
+    app.include_router(frontend_router, prefix="/api")
 
     return app
 
