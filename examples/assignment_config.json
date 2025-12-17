@@ -1,0 +1,64 @@
+{
+  "assignment_id": 45,
+  "title": "校园垃圾分类改进项目",
+  "cpote": {
+    "context": "学生将围绕校园垃圾分类开展探究。",
+    "problem": "校园垃圾分类中存在混投和资源浪费。",
+    "objective": "培养学生的可持续发展意识并提出改进方案。",
+    "task": "分组调研垃圾分类现状，制定改进措施并制作汇报。",
+    "evaluation": "根据调研质量、合作程度和成果可行性进行评价。",
+    "source_refs": [
+      {
+        "document_id": 12,
+        "page": 3,
+        "chunk_id": "12-3-5",
+        "text": "学生将围绕校园垃圾分类开展探究..."
+      }
+    ]
+  },
+  "milestones": [
+    {
+      "index": 1,
+      "name": "组队与分工",
+      "description": "提交分工表",
+      "due_at": "2024-08-10T00:00:00Z"
+    },
+    {
+      "index": 2,
+      "name": "调查与研究",
+      "description": "提交数据/草稿",
+      "due_at": "2024-08-17T00:00:00Z",
+      "submission_requirements": "包含访谈或问卷数据"
+    },
+    {
+      "index": 3,
+      "name": "成果制作",
+      "description": "提交PPT/报告",
+      "due_at": "2024-08-24T00:00:00Z"
+    },
+    {
+      "index": 4,
+      "name": "汇报与评价",
+      "description": "最终汇报",
+      "due_at": "2024-08-31T00:00:00Z"
+    }
+  ],
+  "groups": [],
+  "rubric": {
+    "dimensions": [
+      "participation",
+      "collaboration",
+      "inquiry",
+      "innovation",
+      "result"
+    ],
+    "scale": "0-100",
+    "criteria": {
+      "participation": "0-20: 无提交；21-60: 部分完成；61-85: 按时完成；86-100: 主动贡献",
+      "collaboration": "团队沟通与协作程度",
+      "inquiry": "调研和分析深度",
+      "innovation": "方案的创新性",
+      "result": "成果的可行性与影响"
+    }
+  }
+}
