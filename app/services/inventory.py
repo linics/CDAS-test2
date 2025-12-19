@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
-from typing import List, Sequence
+from typing import List
 
 from chromadb import PersistentClient
 from fastapi import UploadFile
@@ -12,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.models import Document, ParsingStatus
+from app.services.ai import EmbeddingProvider
 from app.utils.storage import ensure_directory, remove_directory, save_upload_file
 from app.utils.text_processing import chunk_pages, parse_document
 
@@ -22,6 +22,7 @@ class InventoryService:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self._chroma_client: PersistentClient | None = None
+        self.embedding_provider = EmbeddingProvider(settings)
         ensure_directory(self.settings.documents_dir)
         ensure_directory(self.settings.chroma_persist_dir)
 
@@ -36,25 +37,6 @@ class InventoryService:
             name="cdas-documents",
             metadata={"hnsw:space": "cosine"},
         )
-
-    def _embed_texts(self, texts: Sequence[str], dim: int = 128) -> List[List[float]]:
-        """使用可复现的哈希向量模拟 embedding，便于本地运行与测试。
-
-        后续可替换为真实的 Gemini/Embedding API。
-        """
-
-        embeddings: List[List[float]] = []
-        for text in texts:
-            digest = hashlib.sha256(text.encode("utf-8", errors="ignore")).digest()
-            # 将哈希扩展到指定维度
-            vector = []
-            while len(vector) < dim:
-                for b in digest:
-                    vector.append((b - 128) / 128.0)
-                    if len(vector) >= dim:
-                        break
-            embeddings.append(vector)
-        return embeddings
 
     async def handle_upload(self, db: Session, upload: UploadFile) -> Document:
         """完整处理上传、解析、索引流程。"""
@@ -82,7 +64,7 @@ class InventoryService:
             raw_content = destination.read_bytes()
             pages = parse_document(raw_content, upload.filename or destination.name)
             chunks = chunk_pages(document.id, pages, chunk_size=800, overlap=200)
-            embeddings = self._embed_texts([c["text"] for c in chunks])
+            embeddings = self.embedding_provider.embed_texts([c["text"] for c in chunks])
 
             collection = self.get_collection()
             collection.upsert(

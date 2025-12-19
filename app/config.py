@@ -31,6 +31,12 @@ class Settings(BaseSettings):
     gemini_api_key: Optional[str] = Field(
         default=None, description="Gemini API Key，占位，后续步骤使用"
     )
+    gemini_model: str = Field(
+        default="models/gemini-1.5-pro-latest", description="Gemini 对话/推理模型 ID"
+    )
+    gemini_embedding_model: str = Field(
+        default="models/text-embedding-004", description="Gemini Embedding 模型 ID"
+    )
 
     model_config = {
         "env_prefix": "CDAS_",
