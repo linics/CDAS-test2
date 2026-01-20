@@ -29,8 +29,8 @@ router = APIRouter()
 
 class TeacherEvaluationCreate(BaseModel):
     submission_id: int
-    score_level: EvaluationLevel
-    score_numeric: Optional[int] = None
+    score_numeric: int
+    score_level: Optional[EvaluationLevel] = None
     dimension_scores_json: Dict[str, int] = Field(default_factory=dict)
     feedback: str
 
@@ -245,12 +245,22 @@ async def create_teacher_evaluation(
     submission = db.query(Submission).filter(Submission.id == data.submission_id).first()
     if not submission:
         raise HTTPException(status_code=404, detail="提交不存在")
+
+    level_map = {
+        4: EvaluationLevel.EXCELLENT,
+        3: EvaluationLevel.GOOD,
+        2: EvaluationLevel.PASS,
+        1: EvaluationLevel.IMPROVE,
+    }
+    if data.score_numeric not in level_map:
+        raise HTTPException(status_code=400, detail="score_numeric must be 1-4")
+    score_level = data.score_level or level_map[data.score_numeric]
     
     evaluation = Evaluation(
         submission_id=data.submission_id,
         evaluator_id=current_user.id,
         evaluation_type=EvaluationType.TEACHER,
-        score_level=data.score_level,
+        score_level=score_level,
         score_numeric=data.score_numeric,
         dimension_scores_json=data.dimension_scores_json,
         feedback=data.feedback,

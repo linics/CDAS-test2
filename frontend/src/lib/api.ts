@@ -203,8 +203,8 @@ export interface SubmissionCreate {
 
 export interface TeacherEvaluationCreate {
     submission_id: number;
-    score_level: "A" | "B" | "C" | "D";
-    score_numeric?: number;
+    score_numeric: number;
+    score_level?: "A" | "B" | "C" | "D";
     dimension_scores_json?: Record<string, number>;
     feedback: string;
 }
