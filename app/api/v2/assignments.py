@@ -61,8 +61,7 @@ class ObjectivesSchema(BaseModel):
 
 class RubricDimensionSchema(BaseModel):
     name: str
-    weight: int
-    description: str
+    levels: Dict[str, str] = Field(default_factory=dict)
 
 
 class RubricSchema(BaseModel):
