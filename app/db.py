@@ -316,6 +316,12 @@ def ensure_sqlite_assignments_schema(db_engine: Engine) -> None:
                 "UPDATE assignments SET inquiry_subtype = UPPER(inquiry_subtype) WHERE inquiry_subtype IS NOT NULL",
             ],
         )
+        conn.execute(
+            text(
+                "UPDATE assignments SET topic = COALESCE(NULLIF(topic, ''), title, '未设置') "
+                "WHERE (topic IS NULL OR topic = '')"
+            )
+        )
 
         ensure_table(
             "project_groups",
