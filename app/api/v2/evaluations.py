@@ -60,6 +60,8 @@ class EvaluationResponse(BaseModel):
     score_level: Optional[EvaluationLevel]
     score_numeric: Optional[int]
     dimension_scores_json: Dict[str, int]
+    score_level_label: Optional[str] = None
+    dimension_level_labels: Dict[str, str] = Field(default_factory=dict)
     feedback: Optional[str]
     ai_generated: bool
     is_anonymous: bool
@@ -183,6 +185,21 @@ def _compute_average_score(scores: Dict[str, int]) -> int:
     return _clamp_score(int(average + 0.5))
 
 
+def _build_dimension_labels(scores: Dict[str, int]) -> Dict[str, str]:
+    labels: Dict[str, str] = {}
+    for name, score in scores.items():
+        labels[name] = _level_label(_score_to_level(score))
+    return labels
+
+
+def _build_evaluation_response(evaluation: Evaluation) -> EvaluationResponse:
+    response = EvaluationResponse.model_validate(evaluation, from_attributes=True)
+    if response.score_level is not None:
+        response.score_level_label = _level_label(response.score_level.value)
+    response.dimension_level_labels = _build_dimension_labels(response.dimension_scores_json or {})
+    return response
+
+
 def _score_to_level(score: int) -> str:
     return _normalize_level_input(score)
 
@@ -247,7 +264,7 @@ async def create_teacher_evaluation(
     
     db.commit()
     db.refresh(evaluation)
-    return evaluation
+    return _build_evaluation_response(evaluation)
 
 
 @router.post("/self", response_model=EvaluationResponse)
@@ -288,7 +305,7 @@ async def create_self_evaluation(
     db.add(evaluation)
     db.commit()
     db.refresh(evaluation)
-    return evaluation
+    return _build_evaluation_response(evaluation)
 
 
 @router.post("/peer", response_model=EvaluationResponse)
@@ -328,7 +345,7 @@ async def create_peer_evaluation(
     db.add(evaluation)
     db.commit()
     db.refresh(evaluation)
-    return evaluation
+    return _build_evaluation_response(evaluation)
 
 
 @router.get("/submission/{submission_id}", response_model=EvaluationListResponse)
@@ -348,7 +365,7 @@ async def list_submission_evaluations(
         raise HTTPException(status_code=403, detail="无权查看此提交的评价")
     
     evaluations = db.query(Evaluation).filter(Evaluation.submission_id == submission_id).all()
-    return {"evaluations": evaluations, "total": len(evaluations)}
+    return {"evaluations": [_build_evaluation_response(item) for item in evaluations], "total": len(evaluations)}
 
 
 @router.post("/ai-assist")
@@ -459,4 +476,4 @@ async def list_my_received_evaluations(
     submission_ids = [s.id for s in my_submissions]
     
     evaluations = db.query(Evaluation).filter(Evaluation.submission_id.in_(submission_ids)).all()
-    return {"evaluations": evaluations, "total": len(evaluations)}
+    return {"evaluations": [_build_evaluation_response(item) for item in evaluations], "total": len(evaluations)}
