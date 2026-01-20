@@ -20,7 +20,7 @@ const ReferenceDocumentsSection: React.FC = () => {
     return (
         <section className="bg-white p-6 rounded-xl border space-y-4">
             <div className="flex justify-between items-center border-b pb-2">
-                <h2 className="text-lg font-semibold text-gray-800">参考资料 (可选)</h2>
+                <h2 className="text-lg font-semibold text-gray-800">参考资料(可选)</h2>
                 <span className="text-xs text-gray-400">用于 AI 生成任务引导</span>
             </div>
 
@@ -48,7 +48,7 @@ const ReferenceDocumentsSection: React.FC = () => {
                             onChange={() => setSelectedDocId(null)}
                             className="h-4 w-4 text-blue-600"
                         />
-                        <span className="text-gray-700">不使用参考资料（纯手动 / 仅依据课标）</span>
+                        <span className="text-gray-700">不使用参考资料（纯手动/仅依据课标）</span>
                     </label>
                     {readyDocs.map((doc: any) => (
                         <label
@@ -363,7 +363,7 @@ const AssignmentDesignPage: React.FC = () => {
                     </div>
                 </section>
 
-                {/* 参考资料（用于 AI 生成） */}
+                {/* 参考资料（用于 AI 生成）*/}
                 <ReferenceDocumentsSection />
 
                 {!isEditMode && (
@@ -491,7 +491,7 @@ const AssignmentDesignPage: React.FC = () => {
                                     checked={formData.submission_mode === 'phased'}
                                     onChange={handleChange}
                                 />
-                                <span>过程性提交 (分阶段)</span>
+                                <span>过程性提交(分阶段)</span>
                             </label>
                             <label className="flex items-center gap-2 cursor-pointer">
                                 <input
@@ -532,7 +532,7 @@ const AssignmentDesignPage: React.FC = () => {
                                                         };
                                                     });
                                                 }
-                                                alert("生成成功！");
+                                                alert("生成成功。");
                                                 queryClient.invalidateQueries({ queryKey: ['assignment', id] });
                                             })
                                             .catch((err: any) => {
@@ -657,7 +657,6 @@ const AssignmentDesignPage: React.FC = () => {
                             )}
                         </div>
                     </section>
-                )}
 
                 {/* 操作栏 */}
                 <div className="flex justify-end gap-4 pt-4">

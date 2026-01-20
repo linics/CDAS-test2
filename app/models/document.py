@@ -41,7 +41,6 @@ class Document(Base):
     file_path: Mapped[Optional[str]] = mapped_column(String(512))
     mime_type: Mapped[Optional[str]] = mapped_column(String(50))
     size_bytes: Mapped[Optional[int]] = mapped_column(BigInteger)
-    cpote_json: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON)
     metadata_json: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON)
     error_msg: Mapped[Optional[str]] = mapped_column(Text)
     source: Mapped[str] = mapped_column(String(20), default="user")

@@ -2,9 +2,7 @@
 
 from fastapi import FastAPI
 
-from app.api.agents import router as agents_router
 from app.api.documents import router as documents_router
-from app.api.frontend import router as frontend_router
 from app.api.v2 import router as v2_router
 from app.config import get_settings
 from app.db import Base, engine, ensure_sqlite_assignments_schema
@@ -85,8 +83,6 @@ def create_app() -> FastAPI:
 
     # 旧版 API (保持兼容)
     app.include_router(documents_router, prefix="/api")
-    app.include_router(agents_router, prefix="/api")
-    app.include_router(frontend_router, prefix="/api")
     
     # 新版 API v2
     app.include_router(v2_router)

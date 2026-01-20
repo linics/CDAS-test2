@@ -32,9 +32,6 @@ class Assignment(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     topic: Mapped[str] = mapped_column(String(255), nullable=False)  # 探究主题
     description: Mapped[Optional[str]] = mapped_column(Text)
-    # 旧版字段（Step0-4），保留以兼容历史表结构
-    scenario: Mapped[Optional[str]] = mapped_column(Text)
-    milestones_json: Mapped[List[Dict[str, Any]]] = mapped_column(JSON, default=list)
     
     # 学段与年级
     school_stage: Mapped[SchoolStage] = mapped_column(Enum(SchoolStage), nullable=False)
@@ -81,8 +78,6 @@ class Assignment(Base):
     # 格式: {"dimensions": [{"name": "实践准备", "weight": 10, "description": "..."}]}
     rubric_json: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
     
-    # CPOTE结构 (兼容旧版)
-    cpote_json: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON)
     
     # === 关联管理 ===
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)

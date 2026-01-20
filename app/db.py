@@ -58,6 +58,113 @@ def ensure_sqlite_assignments_schema(db_engine: Engine) -> None:
         return
 
     with db_engine.begin() as conn:
+        def maybe_rebuild_assignments() -> None:
+            cols = conn.execute(text("PRAGMA table_info(assignments)")).fetchall()
+            if not cols:
+                return
+            col_names = {row[1] for row in cols}
+            if "milestones_json" not in col_names:
+                return
+
+            def col_expr(name: str, fallback: str) -> str:
+                return name if name in col_names else fallback
+
+            conn.execute(text("ALTER TABLE assignments RENAME TO assignments_old"))
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE assignments (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        title VARCHAR(255) NOT NULL,
+                        topic VARCHAR(255) NOT NULL,
+                        description TEXT,
+                        school_stage VARCHAR(7) NOT NULL,
+                        grade INTEGER NOT NULL,
+                        main_subject_id INTEGER NOT NULL,
+                        related_subject_ids JSON NOT NULL,
+                        assignment_type VARCHAR(9) NOT NULL,
+                        practical_subtype VARCHAR(11),
+                        inquiry_subtype VARCHAR(10),
+                        inquiry_depth VARCHAR(12) NOT NULL,
+                        submission_mode VARCHAR(6) NOT NULL,
+                        duration_weeks INTEGER NOT NULL,
+                        deadline DATETIME,
+                        objectives_json JSON NOT NULL,
+                        phases_json JSON NOT NULL,
+                        rubric_json JSON NOT NULL,
+                        created_by INTEGER NOT NULL,
+                        document_id INTEGER,
+                        created_at DATETIME NOT NULL,
+                        updated_at DATETIME NOT NULL,
+                        is_published BOOLEAN NOT NULL,
+                        published_at DATETIME,
+                        FOREIGN KEY(main_subject_id) REFERENCES subjects (id),
+                        FOREIGN KEY(created_by) REFERENCES users (id),
+                        FOREIGN KEY(document_id) REFERENCES documents (id)
+                    )
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    f"""
+                    INSERT INTO assignments (
+                        id,
+                        title,
+                        topic,
+                        description,
+                        school_stage,
+                        grade,
+                        main_subject_id,
+                        related_subject_ids,
+                        assignment_type,
+                        practical_subtype,
+                        inquiry_subtype,
+                        inquiry_depth,
+                        submission_mode,
+                        duration_weeks,
+                        deadline,
+                        objectives_json,
+                        phases_json,
+                        rubric_json,
+                        created_by,
+                        document_id,
+                        created_at,
+                        updated_at,
+                        is_published,
+                        published_at
+                    )
+                    SELECT
+                        id,
+                        {col_expr("title", "''")},
+                        {col_expr("topic", "''")},
+                        {col_expr("description", "NULL")},
+                        {col_expr("school_stage", "'PRIMARY'")},
+                        {col_expr("grade", "1")},
+                        {col_expr("main_subject_id", "1")},
+                        COALESCE({col_expr("related_subject_ids", "NULL")}, '[]'),
+                        {col_expr("assignment_type", "'INQUIRY'")},
+                        {col_expr("practical_subtype", "NULL")},
+                        {col_expr("inquiry_subtype", "NULL")},
+                        {col_expr("inquiry_depth", "'INTERMEDIATE'")},
+                        {col_expr("submission_mode", "'PHASED'")},
+                        {col_expr("duration_weeks", "2")},
+                        {col_expr("deadline", "NULL")},
+                        COALESCE({col_expr("objectives_json", "NULL")}, '{{}}'),
+                        COALESCE({col_expr("phases_json", "NULL")}, '[]'),
+                        COALESCE({col_expr("rubric_json", "NULL")}, '{{}}'),
+                        {col_expr("created_by", "1")},
+                        {col_expr("document_id", "NULL")},
+                        COALESCE({col_expr("created_at", "NULL")}, CURRENT_TIMESTAMP),
+                        COALESCE({col_expr("updated_at", "NULL")}, CURRENT_TIMESTAMP),
+                        COALESCE({col_expr("is_published", "NULL")}, 0),
+                        {col_expr("published_at", "NULL")}
+                    FROM assignments_old
+                    """
+                )
+            )
+            conn.execute(text("DROP TABLE assignments_old"))
+
         def maybe_rebuild_submissions() -> None:
             cols = conn.execute(text("PRAGMA table_info(submissions)")).fetchall()
             if not cols:
@@ -160,6 +267,8 @@ def ensure_sqlite_assignments_schema(db_engine: Engine) -> None:
                 for stmt in updates:
                     conn.execute(text(stmt))
 
+        maybe_rebuild_assignments()
+
         ensure_table(
             "assignments",
             {
@@ -207,25 +316,6 @@ def ensure_sqlite_assignments_schema(db_engine: Engine) -> None:
                 "UPDATE assignments SET inquiry_subtype = UPPER(inquiry_subtype) WHERE inquiry_subtype IS NOT NULL",
             ],
         )
-
-        assignment_cols = {
-            row[1]
-            for row in conn.execute(text("PRAGMA table_info(assignments)")).fetchall()
-        }
-        if "scenario" in assignment_cols:
-            conn.execute(
-                text(
-                    "UPDATE assignments SET topic = COALESCE(NULLIF(topic, ''), scenario, title, '未设置') "
-                    "WHERE (topic IS NULL OR topic = '')"
-                )
-            )
-        else:
-            conn.execute(
-                text(
-                    "UPDATE assignments SET topic = COALESCE(NULLIF(topic, ''), title, '未设置') "
-                    "WHERE (topic IS NULL OR topic = '')"
-                )
-            )
 
         ensure_table(
             "project_groups",
