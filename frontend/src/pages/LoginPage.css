@@ -77,6 +77,23 @@
     background: rgba(255, 255, 255, 0.9);
 }
 
+.login-select {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid rgba(31, 43, 42, 0.2);
+    border-radius: 12px;
+    font-size: 1rem;
+    background: rgba(255, 255, 255, 0.9);
+    color: #1f2b2a;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.login-select:focus {
+    outline: none;
+    border-color: #1f3b4d;
+    box-shadow: 0 0 0 3px rgba(31, 59, 77, 0.12);
+}
+
 .form-group input:focus {
     outline: none;
     border-color: #1f3b4d;

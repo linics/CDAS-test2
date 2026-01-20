@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+﻿import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, Outlet, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -42,38 +42,38 @@ function Layout() {
   const { user, logout } = useAuth();
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <nav className="bg-white border-b px-6 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+    <div className="min-h-screen flex flex-col archive-app">
+      <nav className="archive-nav px-6 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
         <div className="flex items-center gap-8">
-          <Link to="/" className="font-bold text-2xl bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">CDAS</Link>
+          <Link to="/" className="archive-brand font-bold text-2xl">CDAS</Link>
           <div className="flex items-center gap-4 text-sm font-medium">
             {user?.role === 'teacher' ? (
               <>
-                <Link to="/inventory" className="text-gray-600 hover:text-blue-600 transition">资料库</Link>
-                <Link to="/assignments" className="text-gray-600 hover:text-blue-600 transition">作业管理</Link>
-                <Link to="/evaluations" className="text-gray-600 hover:text-blue-600 transition">评价批改</Link>
+                <Link to="/inventory" className="text-gray-700 hover:text-black transition">资料库</Link>
+                <Link to="/assignments" className="text-gray-700 hover:text-black transition">作业管理</Link>
+                <Link to="/evaluations" className="text-gray-700 hover:text-black transition">评价批改</Link>
               </>
             ) : (
               <>
-                <Link to="/my-assignments" className="text-gray-600 hover:text-blue-600 transition">我的作业</Link>
-                <Link to="/my-submissions" className="text-gray-600 hover:text-blue-600 transition">我的提交</Link>
+                <Link to="/my-assignments" className="text-gray-700 hover:text-black transition">我的作业</Link>
+                <Link to="/my-submissions" className="text-gray-700 hover:text-black transition">我的提交</Link>
               </>
             )}
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-gray-700">
             {user?.name} ({user?.role === 'teacher' ? '教师' : '学生'})
           </span>
           <button
             onClick={logout}
-            className="text-sm text-gray-500 hover:text-red-600 transition"
+            className="text-sm text-gray-600 hover:text-red-600 transition"
           >
             退出
           </button>
         </div>
       </nav>
-      <main className="container mx-auto py-8 px-4 flex-1">
+      <main className="container mx-auto py-10 px-4 flex-1">
         <Outlet />
       </main>
     </div>

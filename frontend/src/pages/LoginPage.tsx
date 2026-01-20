@@ -1,4 +1,4 @@
-// 登录页面
+﻿// 登录页面
 
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
@@ -30,9 +30,9 @@ const LoginPage: React.FC = () => {
 
     return (
         <div className="login-page">
-            <div className="login-container">
+            <div className="login-container archive-cover">
                 <div className="login-header">
-                    <h1>跨学科作业系统</h1>
+                    <h1 className="archive-title">跨学科作业系统</h1>
                     <p>CDAS - Cross-Disciplinary Assignment System</p>
                 </div>
 

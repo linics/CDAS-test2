@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { submissionsApi, assignmentsApi, evaluationsApi } from '../lib/api';
@@ -97,9 +97,9 @@ const GradingPage: React.FC = () => {
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 h-[calc(100vh-100px)]">
 
             {/* 左侧：学生提交内容 */}
-            <div className="bg-white border rounded-xl shadow-sm flex flex-col h-full overflow-hidden">
-                <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
-                    <h2 className="font-bold text-lg">学生提交内容</h2>
+            <div className="archive-card flex flex-col h-full overflow-hidden">
+                <div className="p-4 border-b flex justify-between items-center">
+                    <h2 className="font-bold text-lg archive-title">学生提交内容</h2>
                     <div className="text-sm text-gray-500">
                         第 {submission.phase_index + 1} 阶段
                     </div>
@@ -110,7 +110,7 @@ const GradingPage: React.FC = () => {
                     {submission.content_json && Object.keys(submission.content_json).length > 0 && (
                         <div className="space-y-2">
                             <h3 className="font-medium text-gray-700">文本回答</h3>
-                            <div className="bg-gray-50 p-4 rounded-lg text-gray-800 whitespace-pre-wrap border">
+                            <div className="archive-section p-4 text-gray-800 whitespace-pre-wrap">
                                 {JSON.stringify(submission.content_json, null, 2)}
                             </div>
                         </div>
@@ -127,7 +127,7 @@ const GradingPage: React.FC = () => {
                                         href={att.url}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="flex items-center gap-3 p-3 border rounded-lg hover:bg-blue-50 transition"
+                                        className="archive-section flex items-center gap-3 p-3 hover:bg-white/70 transition"
                                     >
                                         <span className="text-2xl">📄</span>
                                         <div className="flex-1 overflow-hidden">
@@ -160,13 +160,13 @@ const GradingPage: React.FC = () => {
             </div>
 
             {/* 右侧：评分面板 */}
-            <div className="bg-white border rounded-xl shadow-sm flex flex-col h-full overflow-hidden">
-                <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
-                    <h2 className="font-bold text-lg">评分与反馈</h2>
+            <div className="archive-card flex flex-col h-full overflow-hidden">
+                <div className="p-4 border-b flex justify-between items-center">
+                    <h2 className="font-bold text-lg archive-title">评分与反馈</h2>
                     <button
                         onClick={() => aiAssistMutation.mutate(submission.id)}
                         disabled={aiAssistMutation.isPending}
-                        className="text-sm bg-purple-100 text-purple-700 px-3 py-1 rounded-full hover:bg-purple-200 transition flex items-center gap-1"
+                        className="archive-badge bg-amber-50 text-amber-700 px-3 py-1 rounded-full hover:bg-amber-100 transition flex items-center gap-1"
                     >
                         <span>✨</span> {aiAssistMutation.isPending ? '生成中...' : 'AI 辅助评分'}
                     </button>
@@ -176,7 +176,7 @@ const GradingPage: React.FC = () => {
 
                     {/* 维度评分 (Rubric) */}
                     <div className="space-y-4">
-                        <h3 className="font-medium text-gray-900 border-b pb-2">维度评分</h3>
+                        <h3 className="font-medium text-gray-900 border-b pb-2 archive-title">维度评分</h3>
                         {assignment.rubric_json?.dimensions ? (
                             assignment.rubric_json.dimensions.map((dim: any) => (
                                 <div key={dim.name} className="space-y-1">

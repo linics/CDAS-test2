@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { assignmentsApi } from '../lib/api';
@@ -81,15 +81,15 @@ const AssignmentsPage: React.FC = () => {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 archive-section">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">作业管理</h1>
-                    <p className="text-gray-500 mt-1">创建和管理跨学科作业。</p>
+                    <h1 className="text-2xl font-bold archive-title">作业管理</h1>
+                    <p className="archive-subtitle mt-1">创建和管理跨学科作业。</p>
                 </div>
                 <Link
                     to="/assignments/new"
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow-sm font-medium flex items-center gap-2"
+                    className="archive-button px-4 py-2 transition shadow-sm font-medium flex items-center gap-2"
                 >
                     <span>+</span> 创建新作业
                 </Link>
@@ -127,7 +127,7 @@ const AssignmentsPage: React.FC = () => {
                     filteredAssignments?.map((assignment: Assignment) => (
                         <div
                             key={assignment.id}
-                            className="bg-white border rounded-xl p-6 hover:shadow-md transition flex justify-between items-start"
+                            className="archive-card p-6 hover:shadow-md transition flex justify-between items-start"
                         >
                             <div>
                                 <div className="flex items-center gap-3 mb-2">
@@ -137,14 +137,14 @@ const AssignmentsPage: React.FC = () => {
                                         </Link>
                                     </h3>
                                     {assignment.is_published ? (
-                                        <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-medium">已发布</span>
+                                        <span className="archive-badge bg-green-100 text-green-700 font-medium">已发布</span>
                                     ) : (
-                                        <span className="bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded-full font-medium">草稿</span>
+                                        <span className="archive-badge bg-amber-100 text-amber-700 font-medium">草稿</span>
                                     )}
-                                    <span className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-full">
+                                    <span className="archive-badge bg-gray-100 text-gray-600">
                                         {getGradeLabel(assignment.grade)}
                                     </span>
-                                    <span className="bg-blue-50 text-blue-600 text-xs px-2 py-0.5 rounded-full">
+                                    <span className="archive-badge bg-blue-50 text-blue-600">
                                         {getAssignmentTypeLabel(assignment.assignment_type)}
                                     </span>
                                 </div>
