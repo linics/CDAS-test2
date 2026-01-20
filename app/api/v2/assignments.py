@@ -671,35 +671,41 @@ def _default_objectives(data: AssignmentCreate) -> Dict[str, str]:
 
 
 def _default_rubric(assignment_type: AssignmentType) -> Dict[str, Any]:
+    level_template = {
+        "excellent": "表现突出，达到并超出要求。",
+        "good": "达到要求，表现良好。",
+        "pass": "基本达到要求。",
+        "improve": "未达要求，需要改进。",
+    }
     if assignment_type == AssignmentType.PRACTICAL:
         return {
             "dimensions": [
-                {"name": "实践准备", "weight": 10, "description": "计划完整性与材料准备情况"},
-                {"name": "实践参与", "weight": 25, "description": "任务完成度与参与积极性"},
-                {"name": "过程记录", "weight": 15, "description": "记录的完整性与真实性"},
-                {"name": "跨学科运用", "weight": 20, "description": "多学科知识应用与解释能力"},
-                {"name": "成果表达", "weight": 20, "description": "成果质量与表达清晰度"},
-                {"name": "反思能力", "weight": 10, "description": "反思深度与改进意识"},
+                {"name": "实践准备", "levels": level_template},
+                {"name": "实践参与", "levels": level_template},
+                {"name": "过程记录", "levels": level_template},
+                {"name": "跨学科运用", "levels": level_template},
+                {"name": "成果表达", "levels": level_template},
+                {"name": "反思能力", "levels": level_template},
             ]
         }
     if assignment_type == AssignmentType.PROJECT:
         return {
             "dimensions": [
-                {"name": "问题分析", "weight": 10, "description": "对真实问题的理解深度"},
-                {"name": "规划协作", "weight": 15, "description": "计划合理性与团队协作"},
-                {"name": "迭代改进", "weight": 20, "description": "改进次数与优化质量"},
-                {"name": "成果质量", "weight": 25, "description": "成果完成度与创新性"},
-                {"name": "展示汇报", "weight": 15, "description": "表达清晰度与答辩表现"},
-                {"name": "复盘反思", "weight": 15, "description": "复盘深度与个人成长"},
+                {"name": "问题分析", "levels": level_template},
+                {"name": "规划协作", "levels": level_template},
+                {"name": "迭代改进", "levels": level_template},
+                {"name": "成果质量", "levels": level_template},
+                {"name": "展示汇报", "levels": level_template},
+                {"name": "复盘反思", "levels": level_template},
             ]
         }
     return {
         "dimensions": [
-            {"name": "问题意识", "weight": 15, "description": "问题价值性与可探究性"},
-            {"name": "方案设计", "weight": 20, "description": "方法选择与步骤可操作性"},
-            {"name": "探究过程", "weight": 25, "description": "数据真实性与过程规范性"},
-            {"name": "结论质量", "weight": 25, "description": "论证逻辑性与结论可靠性"},
-            {"name": "反思能力", "weight": 15, "description": "反思深度与改进思路"},
+            {"name": "问题意识", "levels": level_template},
+            {"name": "方案设计", "levels": level_template},
+            {"name": "探究过程", "levels": level_template},
+            {"name": "结论质量", "levels": level_template},
+            {"name": "反思能力", "levels": level_template},
         ]
     }
 
@@ -822,7 +828,7 @@ def _generate_ai_content(data: AssignmentCreate) -> tuple[Dict[str, Any], List[D
         "4) checkpoints ????1-2???????content ? evidence_type?\n"
         "5) checkpoints ??? description ???????????????\n"
         "6) evidence_type ???text/document/image/video/confirm/link?\n"
-        "7) rubric ??5-6??weight??????=100???????\n\n"
+        "7) rubric ??5-6?????levels(excellent/good/pass/improve)?????\n\n"
         "???????????\n"
         "- description: \"?????????????\"\n"
         "- checkpoints: [\"?????????????\"]\n"
@@ -1110,23 +1116,30 @@ def _normalize_ai_assignment_output(payload: Dict[str, Any]) -> Dict[str, Any]:
         rubric = {}
     dimensions = rubric.get("dimensions") or rubric.get("criteria") or []
     if isinstance(dimensions, dict):
-        dimensions = [
-            {"name": name, "weight": weight if isinstance(weight, int) else 20, "description": str(weight)}
-            for name, weight in dimensions.items()
-        ]
+        dimensions = [{"name": name} for name in dimensions.keys()]
     normalized_dims: List[Dict[str, Any]] = []
     for dim in dimensions if isinstance(dimensions, list) else []:
         if isinstance(dim, str):
-            normalized_dims.append({"name": dim, "weight": 20, "description": ""})
+            normalized_dims.append({
+                "name": dim,
+                "levels": {
+                    "excellent": "表现突出，达到并超出要求。",
+                    "good": "达到要求，表现良好。",
+                    "pass": "基本达到要求。",
+                    "improve": "未达要求，需要改进。",
+                },
+            })
         elif isinstance(dim, dict):
             name = dim.get("name") or dim.get("criterion") or dim.get("dimension") or "维度"
-            weight = dim.get("weight")
-            try:
-                weight = int(weight)
-            except Exception:
-                weight = 20
-            description = dim.get("description") or dim.get("desc") or ""
-            normalized_dims.append({"name": name, "weight": weight, "description": description})
+            levels = dim.get("levels")
+            if not isinstance(levels, dict):
+                levels = {
+                    "excellent": "表现突出，达到并超出要求。",
+                    "good": "达到要求，表现良好。",
+                    "pass": "基本达到要求。",
+                    "improve": "未达要求，需要改进。",
+                }
+            normalized_dims.append({"name": name, "levels": levels})
     payload["rubric"] = {"dimensions": normalized_dims}
     return payload
 
