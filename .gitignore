@@ -1,3 +1,7 @@
 __pycache__/
 *.pyc
 .worktrees/
+server*.log
+storage/*.log
+storage/*.db
+storage/chroma/
