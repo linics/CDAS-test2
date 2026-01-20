@@ -73,6 +73,7 @@ class SubmissionResponse(BaseModel):
     submitted_at: Optional[datetime]
     # 嵌套作业信息
     assignment: Optional[AssignmentBrief] = None
+    next_submission_id: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -261,6 +262,7 @@ async def submit_submission(
     submission.submitted_at = datetime.now(timezone.utc)
 
     assignment = db.query(Assignment).filter(Assignment.id == submission.assignment_id).first()
+    next_submission_id: Optional[int] = None
     if assignment and assignment.submission_mode != SubmissionMode.ONCE:
         phases = assignment.phases_json or []
         next_phase_index = submission.phase_index + 1
@@ -274,7 +276,9 @@ async def submit_submission(
                 )
                 .first()
             )
-            if not existing:
+            if existing:
+                next_submission_id = existing.id
+            else:
                 next_submission = Submission(
                     assignment_id=submission.assignment_id,
                     student_id=submission.student_id,
@@ -286,9 +290,12 @@ async def submit_submission(
                     status=SubmissionStatus.DRAFT,
                 )
                 db.add(next_submission)
+                db.flush()
+                next_submission_id = next_submission.id
 
     db.commit()
     db.refresh(submission)
+    setattr(submission, "next_submission_id", next_submission_id)
     return submission
 
 
