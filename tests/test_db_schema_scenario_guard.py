@@ -17,6 +17,23 @@ def test_migrations_fill_missing_topic() -> None:
         )
         conn.execute(
             text(
+                "CREATE TABLE submissions ("
+                "id INTEGER PRIMARY KEY, "
+                "assignment_id INTEGER"
+                ")"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE TABLE evaluations ("
+                "id INTEGER PRIMARY KEY, "
+                "submission_id INTEGER, "
+                "evaluation_type TEXT"
+                ")"
+            )
+        )
+        conn.execute(
+            text(
                 "INSERT INTO assignments (id, title, topic) "
                 "VALUES (1, 'Title', NULL)"
             )
