@@ -1,9 +1,9 @@
 from sqlalchemy import create_engine, text
 
-from app.db import ensure_sqlite_assignments_schema
+from app.migrations import run_migrations
 
 
-def test_assignments_schema_handles_missing_scenario():
+def test_migrations_fill_missing_topic() -> None:
     engine = create_engine("sqlite:///:memory:")
     with engine.begin() as conn:
         conn.execute(
@@ -22,10 +22,7 @@ def test_assignments_schema_handles_missing_scenario():
             )
         )
 
-    try:
-        ensure_sqlite_assignments_schema(engine)
-    except Exception as exc:
-        raise AssertionError(f"schema update should not fail: {exc}") from exc
+    run_migrations(engine)
 
     with engine.begin() as conn:
         topic = conn.execute(
@@ -33,3 +30,20 @@ def test_assignments_schema_handles_missing_scenario():
         ).scalar_one()
 
     assert topic == "Title"
+
+
+def test_startup_uses_migrations(monkeypatch) -> None:
+    from app import main
+
+    called = {"value": False}
+
+    def mark_called(*_args, **_kwargs) -> None:
+        called["value"] = True
+
+    monkeypatch.setattr(main, "run_migrations", mark_called)
+    monkeypatch.setattr(main, "engine", create_engine("sqlite:///:memory:"))
+
+    app = main.create_app()
+    startup = app.router.on_startup[0]
+    startup()
+    assert called["value"]

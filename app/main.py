@@ -5,7 +5,8 @@ from fastapi import FastAPI
 from app.api.documents import router as documents_router
 from app.api.v2 import router as v2_router
 from app.config import get_settings
-from app.db import Base, engine, ensure_sqlite_assignments_schema
+from app.db import Base, engine
+from app.migrations import run_migrations
 
 
 def create_app() -> FastAPI:
@@ -54,7 +55,7 @@ def create_app() -> FastAPI:
             PRESET_SUBJECTS
         )
         Base.metadata.create_all(bind=engine)
-        ensure_sqlite_assignments_schema(engine)
+        run_migrations(engine)
         try:
             with open("storage/ai_status.log", "a", encoding="utf-8") as handle:
                 handle.write(
