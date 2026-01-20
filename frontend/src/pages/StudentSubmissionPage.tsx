@@ -96,6 +96,22 @@ const StudentSubmissionPage: React.FC = () => {
 
     const currentPhase = assignment?.phases_json?.[submission.phase_index];
     const isReadOnly = submission.status !== 'draft' && submission.status !== 'returned';
+    const nextPhaseExists = Boolean(assignment?.phases_json?.[submission.phase_index + 1]);
+
+    const handleEnterNextPhase = async () => {
+        try {
+            const res = await submissionsApi.submit(Number(id));
+            const nextId = res.data?.next_submission_id;
+            if (nextId) {
+                alert('已为你准备下一阶段草稿');
+                navigate(`/my-details/${nextId}`);
+            } else {
+                alert('已是最后阶段');
+            }
+        } catch (err: any) {
+            alert(`进入下一阶段失败: ${err.message}`);
+        }
+    };
 
     return (
         <div className="max-w-4xl mx-auto space-y-8 pb-12">
@@ -201,6 +217,17 @@ const StudentSubmissionPage: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            {submission.status === 'submitted' && nextPhaseExists && (
+                <div className="flex justify-end">
+                    <button
+                        onClick={handleEnterNextPhase}
+                        className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition"
+                    >
+                        进入下一阶段
+                    </button>
+                </div>
+            )}
 
             {/* 教师反馈区 */}
             {submission.status === 'graded' && (
