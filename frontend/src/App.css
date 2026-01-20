@@ -1,42 +1,93 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+.archive-app {
+  min-height: 100vh;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.archive-nav {
+  background: rgba(255, 255, 255, 0.7);
+  border-bottom: 1px solid var(--edge);
+  backdrop-filter: blur(10px);
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.archive-brand {
+  font-family: "Source Serif 4", serif;
+  letter-spacing: 0.06em;
+  color: var(--deep);
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+.archive-card {
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(6px);
 }
 
-.card {
-  padding: 2em;
+.archive-section {
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-card);
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.65);
 }
 
-.read-the-docs {
-  color: #888;
+.archive-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid rgba(184, 138, 59, 0.4);
+  color: var(--accent);
+  padding: 0.2rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.archive-button {
+  background: var(--deep);
+  color: #fff;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 10px 18px rgba(31, 59, 77, 0.28);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.archive-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 22px rgba(31, 59, 77, 0.3);
+}
+
+.archive-title {
+  font-family: "Source Serif 4", serif;
+  color: var(--ink);
+}
+
+.archive-subtitle {
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+.archive-cover {
+  background: linear-gradient(135deg, rgba(255, 250, 238, 0.95), rgba(241, 236, 222, 0.9));
+  border: 1px solid rgba(31, 43, 42, 0.12);
+  border-radius: 24px;
+  box-shadow: var(--shadow);
+  padding: 3rem;
+}
+
+.archive-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.archive-review {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-card);
+  padding: 1.5rem;
+}
+
+.archive-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(184, 138, 59, 0.4), transparent);
+  margin: 1.5rem 0;
 }

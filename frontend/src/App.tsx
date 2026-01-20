@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, Outlet, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -143,6 +144,13 @@ function Dashboard() {
 }
 
 function App() {
+  useEffect(() => {
+    document.body.classList.add('archive-ui');
+    return () => {
+      document.body.classList.remove('archive-ui');
+    };
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
