@@ -185,8 +185,6 @@ def ensure_sqlite_assignments_schema(db_engine: Engine) -> None:
                 "published_at": "DATETIME",
             },
             updates=[
-                "UPDATE assignments SET topic = COALESCE(NULLIF(topic, ''), scenario, title, '未设置') "
-                "WHERE (topic IS NULL OR topic = '')",
                 "UPDATE assignments SET school_stage = COALESCE(school_stage, 'PRIMARY')",
                 "UPDATE assignments SET grade = COALESCE(grade, 1)",
                 "UPDATE assignments SET main_subject_id = COALESCE(main_subject_id, 1)",
@@ -210,10 +208,18 @@ def ensure_sqlite_assignments_schema(db_engine: Engine) -> None:
             ],
         )
 
-        if "scenario" not in {
+        assignment_cols = {
             row[1]
             for row in conn.execute(text("PRAGMA table_info(assignments)")).fetchall()
-        }:
+        }
+        if "scenario" in assignment_cols:
+            conn.execute(
+                text(
+                    "UPDATE assignments SET topic = COALESCE(NULLIF(topic, ''), scenario, title, '未设置') "
+                    "WHERE (topic IS NULL OR topic = '')"
+                )
+            )
+        else:
             conn.execute(
                 text(
                     "UPDATE assignments SET topic = COALESCE(NULLIF(topic, ''), title, '未设置') "
