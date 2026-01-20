@@ -1,0 +1,640 @@
+INFO:     Started server process [50396]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:1605 - "GET /api/v2/auth/me HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:1606 - "GET /api/v2/auth/me HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:1607 - "GET /api/v2/submissions/2 HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:8715 - "GET /api/v2/assignments/2 HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:8090 - "GET /api/v2/submissions/2 HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:8091 - "GET /api/v2/assignments/2 HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:10865 - "GET /api/v2/auth/me HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:10866 - "GET /api/v2/auth/me HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:10867 - "GET /api/v2/submissions/2 HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:10868 - "GET /api/v2/assignments/2 HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:6547 - "GET /api/v2/auth/me HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:6548 - "GET /api/v2/auth/me HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:6549 - "GET /api/v2/submissions/2 HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:6550 - "GET /api/v2/assignments/2 HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:7044 - "GET /api/v2/submissions/2 HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:7045 - "GET /api/v2/assignments/2 HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+DEBUG: list_assignments ENTERED. User: 1, Role: UserRole.TEACHER
+DEBUG: Query created
+DEBUG: User is TEACHER
+DEBUG: Executing count query...
+DEBUG: Total count: 2
+DEBUG: Executing fetch query...
+DEBUG: Fetched 2 assignments
+INFO:     127.0.0.1:1953 - "GET /api/v2/assignments/?page=1&page_size=100&published_only=false HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:8106 - "GET /api/v2/assignments/2 HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:2294 - "GET /api/v2/submissions/assignment/2 HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:4202 - "GET /api/v2/submissions/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:4201 - "GET /api/v2/assignments/2 HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:11770 - "POST /api/v2/evaluations/ai-assist?submission_id=2 HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:13108 - "GET /api/v2/assignments/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:13109 - "GET /api/v2/submissions/assignment/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:5142 - "POST /api/v2/auth/login HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:1097 - "GET /api/v2/auth/me HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+DEBUG: list_assignments ENTERED. User: 10, Role: UserRole.STUDENT
+DEBUG: Query created
+DEBUG: User is STUDENT
+DEBUG: Executing count query...
+DEBUG: Total count: 1
+DEBUG: Executing fetch query...
+DEBUG: Fetched 1 assignments
+INFO:     127.0.0.1:7286 - "GET /api/v2/assignments/?page=1&page_size=100&published_only=true HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:7287 - "GET /api/v2/submissions/my HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:9204 - "GET /api/v2/submissions/2 HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+DEBUG: list_assignments ENTERED. User: 10, Role: UserRole.STUDENT
+DEBUG: Query created
+DEBUG: User is STUDENT
+DEBUG: Executing count query...
+DEBUG: Total count: 1
+DEBUG: Executing fetch query...
+DEBUG: Fetched 1 assignments
+INFO:     127.0.0.1:7977 - "GET /api/v2/assignments/?page=1&page_size=100&published_only=true HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:7978 - "GET /api/v2/submissions/my HTTP/1.1" 200 OK
+INFO:     127.0.0.1:5160 - "POST /api/v2/auth/login HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:9625 - "GET /api/v2/auth/me HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+DEBUG: list_assignments ENTERED. User: 1, Role: UserRole.TEACHER
+DEBUG: Query created
+DEBUG: User is TEACHER
+DEBUG: Executing count query...
+DEBUG: Total count: 2
+DEBUG: Executing fetch query...
+DEBUG: Fetched 2 assignments
+INFO:     127.0.0.1:14090 - "GET /api/v2/assignments/?page=1&page_size=100&published_only=false HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:5916 - "GET /api/v2/subjects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:5917 - "GET /api/v2/assignments/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:5915 - "GET /api/documents HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:7154 - "PUT /api/v2/assignments/2 HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+DEBUG: list_assignments ENTERED. User: 1, Role: UserRole.TEACHER
+DEBUG: Query created
+DEBUG: User is TEACHER
+DEBUG: Executing count query...
+DEBUG: Total count: 2
+DEBUG: Executing fetch query...
+DEBUG: Fetched 2 assignments
+INFO:     127.0.0.1:3675 - "GET /api/v2/assignments/?page=1&page_size=100&published_only=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:11022 - "GET /api/documents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:13105 - "GET /api/v2/subjects/ HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+Unhandled exception caught by middleware:
+Traceback (most recent call last):
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\main.py", line 42, in catch_exceptions_middleware
+    return await call_next(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\cors.py", line 93, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\cors.py", line 144, in simple_response
+    await self.app(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\middleware\asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\routing.py", line 716, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\routing.py", line 736, in app
+    await route.handle(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\routing.py", line 290, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\routing.py", line 120, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\routing.py", line 106, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\routing.py", line 430, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\routing.py", line 316, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\assignments.py", line 173, in preview_assignment
+    gen_objectives, gen_phases, gen_rubric = _generate_ai_content(data)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\assignments.py", line 759, in _generate_ai_content
+    rag_context = _build_rag_context(data, subject_ids)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\assignments.py", line 634, in _build_rag_context
+    chunks = inventory.query_chunks(query, subject_ids=subject_ids, limit=10)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\services\inventory.py", line 141, in query_chunks
+    result = collection.query(
+             ^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\chromadb\api\models\Collection.py", line 217, in query
+    query_request = self._validate_and_prepare_query_request(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\chromadb\api\models\CollectionCommon.py", line 103, in wrapper
+    return func(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\chromadb\api\models\CollectionCommon.py", line 330, in _validate_and_prepare_query_request
+    validate_include(include=include)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\chromadb\api\types.py", line 1241, in validate_include
+    raise ValueError(
+ValueError: Expected include item to be one of documents, embeddings, metadatas, distances, uris, data, got ids in query.
+
+INFO:     127.0.0.1:12014 - "POST /api/v2/assignments/preview HTTP/1.1" 500 Internal Server Error
+DEBUG: get_current_user called. Authorization header present: True
+Unhandled exception caught by middleware:
+Traceback (most recent call last):
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\main.py", line 42, in catch_exceptions_middleware
+    return await call_next(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\cors.py", line 93, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\cors.py", line 144, in simple_response
+    await self.app(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\middleware\asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\routing.py", line 716, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\routing.py", line 736, in app
+    await route.handle(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\routing.py", line 290, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\routing.py", line 120, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\routing.py", line 106, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\routing.py", line 430, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\routing.py", line 316, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\assignments.py", line 173, in preview_assignment
+    gen_objectives, gen_phases, gen_rubric = _generate_ai_content(data)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\assignments.py", line 759, in _generate_ai_content
+    rag_context = _build_rag_context(data, subject_ids)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\assignments.py", line 634, in _build_rag_context
+    chunks = inventory.query_chunks(query, subject_ids=subject_ids, limit=10)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\services\inventory.py", line 141, in query_chunks
+    result = collection.query(
+             ^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\chromadb\api\models\Collection.py", line 217, in query
+    query_request = self._validate_and_prepare_query_request(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\chromadb\api\models\CollectionCommon.py", line 103, in wrapper
+    return func(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\chromadb\api\models\CollectionCommon.py", line 330, in _validate_and_prepare_query_request
+    validate_include(include=include)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\chromadb\api\types.py", line 1241, in validate_include
+    raise ValueError(
+ValueError: Expected include item to be one of documents, embeddings, metadatas, distances, uris, data, got ids in query.
+
+INFO:     127.0.0.1:9906 - "POST /api/v2/assignments/preview HTTP/1.1" 500 Internal Server Error
+DEBUG: get_current_user called. Authorization header present: True
+Unhandled exception caught by middleware:
+Traceback (most recent call last):
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\main.py", line 42, in catch_exceptions_middleware
+    return await call_next(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\cors.py", line 93, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\cors.py", line 144, in simple_response
+    await self.app(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\middleware\asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\routing.py", line 716, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\routing.py", line 736, in app
+    await route.handle(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\routing.py", line 290, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\routing.py", line 120, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\routing.py", line 106, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\routing.py", line 430, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\routing.py", line 316, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\assignments.py", line 207, in create_assignment
+    gen_objectives, gen_phases, gen_rubric = _generate_ai_content(data)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\assignments.py", line 759, in _generate_ai_content
+    rag_context = _build_rag_context(data, subject_ids)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\assignments.py", line 634, in _build_rag_context
+    chunks = inventory.query_chunks(query, subject_ids=subject_ids, limit=10)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\services\inventory.py", line 141, in query_chunks
+    result = collection.query(
+             ^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\chromadb\api\models\Collection.py", line 217, in query
+    query_request = self._validate_and_prepare_query_request(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\chromadb\api\models\CollectionCommon.py", line 103, in wrapper
+    return func(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\chromadb\api\models\CollectionCommon.py", line 330, in _validate_and_prepare_query_request
+    validate_include(include=include)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\chromadb\api\types.py", line 1241, in validate_include
+    raise ValueError(
+ValueError: Expected include item to be one of documents, embeddings, metadatas, distances, uris, data, got ids in query.
+
+INFO:     127.0.0.1:11994 - "POST /api/v2/assignments/ HTTP/1.1" 500 Internal Server Error
+DEBUG: get_current_user called. Authorization header present: True
+Unhandled exception caught by middleware:
+Traceback (most recent call last):
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\main.py", line 42, in catch_exceptions_middleware
+    return await call_next(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\cors.py", line 93, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\cors.py", line 144, in simple_response
+    await self.app(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\middleware\asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\routing.py", line 716, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\routing.py", line 736, in app
+    await route.handle(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\routing.py", line 290, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\routing.py", line 120, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\routing.py", line 106, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\routing.py", line 430, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\routing.py", line 316, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\assignments.py", line 173, in preview_assignment
+    gen_objectives, gen_phases, gen_rubric = _generate_ai_content(data)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\assignments.py", line 759, in _generate_ai_content
+    rag_context = _build_rag_context(data, subject_ids)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\assignments.py", line 634, in _build_rag_context
+    chunks = inventory.query_chunks(query, subject_ids=subject_ids, limit=10)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\services\inventory.py", line 141, in query_chunks
+    result = collection.query(
+             ^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\chromadb\api\models\Collection.py", line 217, in query
+    query_request = self._validate_and_prepare_query_request(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\chromadb\api\models\CollectionCommon.py", line 103, in wrapper
+    return func(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\chromadb\api\models\CollectionCommon.py", line 330, in _validate_and_prepare_query_request
+    validate_include(include=include)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\chromadb\api\types.py", line 1241, in validate_include
+    raise ValueError(
+ValueError: Expected include item to be one of documents, embeddings, metadatas, distances, uris, data, got ids in query.
+
+INFO:     127.0.0.1:2229 - "POST /api/v2/assignments/preview HTTP/1.1" 500 Internal Server Error
+DEBUG: get_current_user called. Authorization header present: True
+Unhandled exception caught by middleware:
+Traceback (most recent call last):
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\main.py", line 42, in catch_exceptions_middleware
+    return await call_next(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\cors.py", line 93, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\cors.py", line 144, in simple_response
+    await self.app(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\middleware\asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\routing.py", line 716, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\routing.py", line 736, in app
+    await route.handle(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\routing.py", line 290, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\routing.py", line 120, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\routing.py", line 106, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\routing.py", line 430, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\routing.py", line 316, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\assignments.py", line 173, in preview_assignment
+    gen_objectives, gen_phases, gen_rubric = _generate_ai_content(data)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\assignments.py", line 759, in _generate_ai_content
+    rag_context = _build_rag_context(data, subject_ids)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\assignments.py", line 634, in _build_rag_context
+    chunks = inventory.query_chunks(query, subject_ids=subject_ids, limit=10)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\services\inventory.py", line 141, in query_chunks
+    result = collection.query(
+             ^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\chromadb\api\models\Collection.py", line 217, in query
+    query_request = self._validate_and_prepare_query_request(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\chromadb\api\models\CollectionCommon.py", line 103, in wrapper
+    return func(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\chromadb\api\models\CollectionCommon.py", line 330, in _validate_and_prepare_query_request
+    validate_include(include=include)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\chromadb\api\types.py", line 1241, in validate_include
+    raise ValueError(
+ValueError: Expected include item to be one of documents, embeddings, metadatas, distances, uris, data, got ids in query.
+
+INFO:     127.0.0.1:3653 - "POST /api/v2/assignments/preview HTTP/1.1" 500 Internal Server Error
+DEBUG: get_current_user called. Authorization header present: True
+DEBUG: list_assignments ENTERED. User: 1, Role: UserRole.TEACHER
+DEBUG: Query created
+DEBUG: User is TEACHER
+DEBUG: Executing count query...
+DEBUG: Total count: 2
+DEBUG: Executing fetch query...
+DEBUG: Fetched 2 assignments
+INFO:     127.0.0.1:1992 - "GET /api/v2/assignments/?page=1&page_size=100&published_only=false HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:9127 - "GET /api/v2/assignments/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:9128 - "GET /api/v2/subjects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:9126 - "GET /api/documents HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+DEBUG: list_assignments ENTERED. User: 1, Role: UserRole.TEACHER
+DEBUG: Query created
+DEBUG: User is TEACHER
+DEBUG: Executing count query...
+DEBUG: Total count: 2
+DEBUG: Executing fetch query...
+DEBUG: Fetched 2 assignments
+INFO:     127.0.0.1:1357 - "GET /api/v2/assignments/?page=1&page_size=100&published_only=false HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:7971 - "GET /api/v2/subjects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:4964 - "GET /api/documents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:7972 - "GET /api/v2/assignments/2 HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+DEBUG: list_assignments ENTERED. User: 1, Role: UserRole.TEACHER
+DEBUG: Query created
+DEBUG: User is TEACHER
+DEBUG: Executing count query...
+DEBUG: Total count: 2
+DEBUG: Executing fetch query...
+DEBUG: Fetched 2 assignments
+INFO:     127.0.0.1:8942 - "GET /api/v2/assignments/?page=1&page_size=100&published_only=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:2299 - "GET /api/v2/subjects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:2298 - "GET /api/documents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:8738 - "GET /api/v2/subjects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:4295 - "GET /api/documents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:12309 - "GET /api/v2/subjects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:3708 - "GET /api/documents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:8103 - "GET /api/v2/subjects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:8104 - "GET /api/documents HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+DEBUG: list_assignments ENTERED. User: 1, Role: UserRole.TEACHER
+DEBUG: Query created
+DEBUG: User is TEACHER
+DEBUG: Executing count query...
+DEBUG: Total count: 2
+DEBUG: Executing fetch query...
+DEBUG: Fetched 2 assignments
+INFO:     127.0.0.1:10608 - "GET /api/v2/assignments/?page=1&page_size=100&published_only=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:5779 - "GET /api/documents HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:3544 - "GET /api/v2/subjects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:3545 - "GET /api/v2/assignments/10 HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+DEBUG: list_assignments ENTERED. User: 1, Role: UserRole.TEACHER
+DEBUG: Query created
+DEBUG: User is TEACHER
+DEBUG: Executing count query...
+DEBUG: Total count: 2
+DEBUG: Executing fetch query...
+DEBUG: Fetched 2 assignments
+INFO:     127.0.0.1:13739 - "GET /api/v2/assignments/?page=1&page_size=100&published_only=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:13037 - "GET /api/v2/subjects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:13038 - "GET /api/documents HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+Unhandled exception caught by middleware:
+Traceback (most recent call last):
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\main.py", line 42, in catch_exceptions_middleware
+    return await call_next(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\cors.py", line 93, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\cors.py", line 144, in simple_response
+    await self.app(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\middleware\exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\middleware\asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\routing.py", line 716, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\routing.py", line 736, in app
+    await route.handle(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\routing.py", line 290, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\routing.py", line 120, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\routing.py", line 106, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\routing.py", line 430, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\routing.py", line 316, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\assignments.py", line 207, in create_assignment
+    gen_objectives, gen_phases, gen_rubric = _generate_ai_content(data)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\assignments.py", line 759, in _generate_ai_content
+    rag_context = _build_rag_context(data, subject_ids)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\assignments.py", line 634, in _build_rag_context
+    chunks = inventory.query_chunks(query, subject_ids=subject_ids, limit=10)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\githubfiles\CDAS-test2\CDAS-test2\app\services\inventory.py", line 141, in query_chunks
+    result = collection.query(
+             ^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\chromadb\api\models\Collection.py", line 217, in query
+    query_request = self._validate_and_prepare_query_request(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\chromadb\api\models\CollectionCommon.py", line 103, in wrapper
+    return func(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\chromadb\api\models\CollectionCommon.py", line 330, in _validate_and_prepare_query_request
+    validate_include(include=include)
+  File "C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\chromadb\api\types.py", line 1241, in validate_include
+    raise ValueError(
+ValueError: Expected include item to be one of documents, embeddings, metadatas, distances, uris, data, got ids in query.
+
+INFO:     127.0.0.1:14922 - "POST /api/v2/assignments/ HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:1242 - "GET /api/v2/subjects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:11769 - "GET /api/documents HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:10940 - "GET /api/v2/auth/me HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:10941 - "GET /api/v2/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:10942 - "GET /api/documents HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+DEBUG: list_assignments ENTERED. User: 1, Role: UserRole.TEACHER
+DEBUG: Query created
+DEBUG: User is TEACHER
+DEBUG: Executing count query...
+DEBUG: Total count: 2
+DEBUG: Executing fetch query...
+DEBUG: Fetched 2 assignments
+INFO:     127.0.0.1:3338 - "GET /api/v2/assignments/?page=1&page_size=100&published_only=false HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:1511 - "GET /api/v2/subjects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:1512 - "GET /api/v2/assignments/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:1510 - "GET /api/documents HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:8601 - "GET /api/v2/subjects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:8602 - "GET /api/v2/assignments/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:8600 - "GET /api/documents HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:8311 - "GET /api/v2/subjects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:8312 - "GET /api/v2/assignments/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:8310 - "GET /api/documents HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:13175 - "GET /api/v2/assignments/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:13174 - "GET /api/v2/subjects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:13173 - "GET /api/documents HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:9492 - "GET /api/v2/assignments/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:9491 - "GET /api/v2/subjects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:9490 - "GET /api/documents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:12248 - "GET /api/v2/subjects/ HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:12249 - "GET /api/v2/assignments/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:12247 - "GET /api/documents HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:14594 - "GET /api/v2/subjects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:14595 - "GET /api/v2/assignments/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:8894 - "GET /api/documents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:12931 - "GET /api/v2/subjects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:12930 - "GET /api/documents HTTP/1.1" 200 OK
+DEBUG: get_current_user called. Authorization header present: True
+INFO:     127.0.0.1:12932 - "GET /api/v2/assignments/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:4383 - "GET /api/v2/subjects/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:1225 - "GET /api/documents HTTP/1.1" 200 OK

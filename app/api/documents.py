@@ -18,11 +18,7 @@ async def upload_document(
     file: UploadFile = File(...), db: Session = Depends(get_db)
 ) -> DocumentUploadResponse:
     document = await inventory_service.handle_upload(db, file)
-    return DocumentUploadResponse(
-        document_id=document.id,
-        filename=document.filename,
-        status=document.parsing_status,
-    )
+    return DocumentUploadResponse.model_validate(document)
 
 
 @router.get("", response_model=list[DocumentListItem])

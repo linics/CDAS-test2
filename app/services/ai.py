@@ -1,62 +1,59 @@
-"""Gemini/LangChain集成的通用工具。"""
+"""DeepSeek/SiliconFlow 集成的通用工具。"""
 
 from __future__ import annotations
 
 import hashlib
-from typing import Iterable, List, Sequence, TypeVar
+import json
+import re
+from typing import Callable, List, Sequence, TypeVar
+
+import requests
 
 from pydantic import BaseModel
 
 from app.config import Settings
 
-try:  # 可选依赖，未安装时自动降级
-    from langchain_google_genai import (
-        ChatGoogleGenerativeAI,
-        GoogleGenerativeAIEmbeddings,
-    )
-    from langchain_core.messages import HumanMessage, SystemMessage
-except ImportError:  # pragma: no cover - 运行环境可能暂无 LangChain
-    ChatGoogleGenerativeAI = None  # type: ignore[assignment]
-    GoogleGenerativeAIEmbeddings = None  # type: ignore[assignment]
-    HumanMessage = None  # type: ignore[assignment]
-    SystemMessage = None  # type: ignore[assignment]
-
 
 T = TypeVar("T", bound=BaseModel)
 
 
-class GeminiNotConfiguredError(RuntimeError):
-    """当未提供 Gemini 相关依赖或 API Key 时抛出。"""
-
-
 class EmbeddingProvider:
-    """包装 Gemini Embedding，未配置时回退到哈希向量。"""
+    """包装 SiliconFlow Embedding，未配置时回退到哈希向量。"""
 
     def __init__(self, settings: Settings, dim: int = 768) -> None:
         self.settings = settings
         self.dim = dim
-        self._client: GoogleGenerativeAIEmbeddings | None = None
-
-    def _get_client(self) -> GoogleGenerativeAIEmbeddings | None:
-        if not self.settings.gemini_api_key or GoogleGenerativeAIEmbeddings is None:
-            return None
-        if self._client is None:
-            self._client = GoogleGenerativeAIEmbeddings(
-                model=self.settings.gemini_embedding_model,
-                google_api_key=self.settings.gemini_api_key,
-            )
-        return self._client
 
     def embed_texts(self, texts: Sequence[str]) -> List[List[float]]:
         if not texts:
             return []
-        client = self._get_client()
-        if not client:
-            return self._fallback_embeddings(texts)
-        try:
-            return client.embed_documents(list(texts))
-        except Exception:  # pragma: no cover - API 调用失败回退
-            return self._fallback_embeddings(texts)
+        if self.settings.siliconflow_api_key:
+            try:
+                return self._embed_with_siliconflow(texts)
+            except Exception:  # pragma: no cover - 外部 API 失败回退
+                return self._fallback_embeddings(texts)
+        return self._fallback_embeddings(texts)
+
+    def _embed_with_siliconflow(self, texts: Sequence[str]) -> List[List[float]]:
+        response = requests.post(
+            "https://api.siliconflow.cn/v1/embeddings",
+            headers={
+                "Authorization": f"Bearer {self.settings.siliconflow_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": self.settings.siliconflow_embedding_model,
+                "input": list(texts),
+            },
+            timeout=60,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        data = payload.get("data", [])
+        embeddings = [item.get("embedding", []) for item in data]
+        if len(embeddings) != len(texts):
+            raise RuntimeError("SiliconFlow embeddings size mismatch")
+        return embeddings
 
     def _fallback_embeddings(self, texts: Sequence[str]) -> List[List[float]]:
         embeddings: List[List[float]] = []
@@ -72,8 +69,69 @@ class EmbeddingProvider:
         return embeddings
 
 
-class GeminiJSONClient:
-    """使用 LangChain 封装的 Gemini 结构化输出。"""
+class RerankProvider:
+    """调用 SiliconFlow Rerank；未配置时直接返回原顺序。"""
+
+    def __init__(self, settings: Settings) -> None:
+        self.settings = settings
+
+    def rerank(self, query: str, documents: Sequence[str]) -> List[int]:
+        if not documents:
+            return []
+        if not self.settings.siliconflow_api_key:
+            return list(range(len(documents)))
+        try:
+            response = requests.post(
+                "https://api.siliconflow.cn/v1/rerank",
+                headers={
+                    "Authorization": f"Bearer {self.settings.siliconflow_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": self.settings.siliconflow_rerank_model,
+                    "query": query,
+                    "documents": list(documents),
+                },
+                timeout=60,
+            )
+            response.raise_for_status()
+            payload = response.json()
+        except Exception as exc:  # pragma: no cover - 外部 API 失败回退
+            _log_ai_error("rerank_request", str(exc))
+            return list(range(len(documents)))
+
+        data = payload.get("data", [])
+        if not isinstance(data, list):
+            return list(range(len(documents)))
+
+        scored: List[tuple[int, float]] = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            index = item.get("index")
+            score = item.get("relevance_score", item.get("score", 0))
+            try:
+                index = int(index)
+            except Exception:
+                continue
+            try:
+                score = float(score)
+            except Exception:
+                score = 0.0
+            scored.append((index, score))
+
+        if not scored:
+            return list(range(len(documents)))
+
+        scored.sort(key=lambda pair: pair[1], reverse=True)
+        indices = [idx for idx, _ in scored if 0 <= idx < len(documents)]
+        if not indices:
+            return list(range(len(documents)))
+        return indices
+
+
+class DeepSeekJSONClient:
+    """使用 DeepSeek Chat Completions 生成结构化 JSON。"""
 
     def __init__(
         self,
@@ -84,47 +142,129 @@ class GeminiJSONClient:
         self.settings = settings
         self.temperature = temperature
         self.max_output_tokens = max_output_tokens
-        self._chat: ChatGoogleGenerativeAI | None = None
 
     @property
     def is_available(self) -> bool:
-        return bool(
-            self.settings.gemini_api_key
-            and ChatGoogleGenerativeAI
-            and HumanMessage
-            and SystemMessage
-        )
-
-    def _get_chat(self) -> ChatGoogleGenerativeAI:
-        if not self.is_available:
-            raise GeminiNotConfiguredError("Gemini API 未配置或依赖缺失")
-        if self._chat is None:
-            self._chat = ChatGoogleGenerativeAI(
-                model=self.settings.gemini_model,
-                google_api_key=self.settings.gemini_api_key,
-                temperature=self.temperature,
-                max_output_tokens=self.max_output_tokens,
-                convert_system_message_to_human=True,
-            )
-        return self._chat
+        return bool(self.settings.deepseek_api_key)
 
     def structured_predict(
         self,
         schema: type[T],
         system_prompt: str,
         user_prompt: str,
+        normalize: Callable[[dict], dict] | None = None,
     ) -> T:
-        """根据 prompt 生成并校验结构化结果。"""
+        if not self.settings.deepseek_api_key:
+            raise RuntimeError("DeepSeek API 未配置")
+        response = requests.post(
+            "https://api.deepseek.com/chat/completions",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.settings.deepseek_api_key}",
+            },
+            json={
+                "model": self.settings.deepseek_model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {
+                        "role": "user",
+                        "content": f"{user_prompt}\n\n只输出 JSON，不要额外解释。",
+                    },
+                ],
+                "temperature": self.temperature,
+                "stream": False,
+                "max_tokens": self.max_output_tokens,
+                "response_format": {"type": "json_object"},
+            },
+            timeout=60,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        content = (
+            payload.get("choices", [{}])[0]
+            .get("message", {})
+            .get("content", "")
+        )
+        data = _extract_json(content)
+        if normalize:
+            data = normalize(data)
+        return schema.model_validate(data)
 
-        chat = self._get_chat()
-        chain = chat.with_structured_output(schema=schema)
+    def predict_json(self, system_prompt: str, user_prompt: str) -> dict:
+        if not self.settings.deepseek_api_key:
+            raise RuntimeError("DeepSeek API 未配置")
         try:
-            result: T = chain.invoke(
-                [
-                    SystemMessage(content=system_prompt),
-                    HumanMessage(content=user_prompt),
-                ]
+            response = requests.post(
+                "https://api.deepseek.com/chat/completions",
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {self.settings.deepseek_api_key}",
+                },
+                json={
+                    "model": self.settings.deepseek_model,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {
+                            "role": "user",
+                            "content": f"{user_prompt}\n\n只输出JSON，不要额外解释。",
+                        },
+                    ],
+                    "temperature": self.temperature,
+                    "stream": False,
+                    "max_tokens": self.max_output_tokens,
+                    "response_format": {"type": "json_object"},
+                },
+                timeout=60,
             )
-        except Exception as exc:  # pragma: no cover - 依赖外部 API
-            raise RuntimeError("Gemini 结构化生成失败") from exc
-        return result
+            response.raise_for_status()
+        except Exception as exc:
+            _log_ai_error("deepseek_request", str(exc))
+            raise
+        payload = response.json()
+        content = (
+            payload.get("choices", [{}])[0]
+            .get("message", {})
+            .get("content", "")
+        )
+        _log_ai_error("deepseek_content", "ok", content)
+        try:
+            return _extract_json(content)
+        except Exception as exc:
+            _log_ai_error("deepseek_parse", str(exc), content)
+            raise
+
+
+def _extract_json(text: str) -> dict:
+    """从模型输出中提取 JSON 对象。"""
+    text = _cleanup_json_text(text)
+    if text.startswith("{") and text.endswith("}"):
+        return json.loads(text)
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end == -1 or end <= start:
+        raise ValueError("未找到 JSON 输出")
+    return json.loads(text[start : end + 1])
+
+
+def _cleanup_json_text(text: str) -> str:
+    text = text.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```[a-zA-Z]*\\s*", "", text)
+        text = re.sub(r"\\s*```$", "", text)
+    text = text.strip()
+    text = re.sub(r",\\s*([}\\]])", r"\\1", text)
+    return text
+
+
+def _log_ai_error(stage: str, message: str, content: str | None = None) -> None:
+    try:
+        snippet = ""
+        if content:
+            snippet = content[:2000]
+        with open("storage/ai_debug.log", "a", encoding="utf-8") as handle:
+            handle.write(f"[{stage}] {message}\n")
+            if snippet:
+                handle.write(f"{snippet}\n")
+            handle.write("---\n")
+    except Exception:
+        pass

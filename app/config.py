@@ -11,12 +11,16 @@ from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+
 class Settings(BaseSettings):
     """核心配置项。
 
     - ``database_url``：默认使用本地 SQLite，便于快速启动。
     - ``chroma_persist_dir``：向量库持久化目录，后续步骤会用到。
-    - ``gemini_api_key``：占位的 API 密钥，后续 Agent 步骤会引用。
+    - ``deepseek_api_key``：DeepSeek API Key，用于结构化生成。
+    - ``siliconflow_api_key``：SiliconFlow API Key，用于 Embedding。
     """
 
     database_url: str = Field(
@@ -28,19 +32,25 @@ class Settings(BaseSettings):
     chroma_persist_dir: Path = Field(
         default=Path("./storage/chroma"), description="Chroma 持久化目录"
     )
-    gemini_api_key: Optional[str] = Field(
-        default=None, description="Gemini API Key，占位，后续步骤使用"
+    deepseek_api_key: Optional[str] = Field(
+        default=None, description="DeepSeek API Key，用于对话/结构化生成"
     )
-    gemini_model: str = Field(
-        default="models/gemini-1.5-pro-latest", description="Gemini 对话/推理模型 ID"
+    deepseek_model: str = Field(
+        default="deepseek-chat", description="DeepSeek 对话模型 ID"
     )
-    gemini_embedding_model: str = Field(
-        default="models/text-embedding-004", description="Gemini Embedding 模型 ID"
+    siliconflow_api_key: Optional[str] = Field(
+        default=None, description="SiliconFlow API Key，用于 Embedding"
+    )
+    siliconflow_embedding_model: str = Field(
+        default="BAAI/bge-large-zh-v1.5", description="SiliconFlow Embedding 模型 ID"
+    )
+    siliconflow_rerank_model: str = Field(
+        default="BAAI/bge-reranker-v2-m3", description="SiliconFlow Rerank 模型 ID"
     )
 
     model_config = {
         "env_prefix": "CDAS_",
-        "env_file": ".env",
+        "env_file": str(BASE_DIR / ".env"),
         "env_file_encoding": "utf-8",
     }
 

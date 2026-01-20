@@ -1,0 +1,136 @@
+[debug] generate_called
+---
+[deepseek_content] ok
+{
+    "objectives": {
+        "knowledge": "理解气候变化的基本概念、原因、影响及应对措施，掌握相关科学术语和事实。",
+        "process": "通过文献检索、阅读分析、信息整合和论证，培养科学探究能力，包括问题提出、假设形成、证据收集和结论形成。",
+        "emotion": "激发对气候问题的关注和责任感，培养环保意识和科学态度。"
+    },
+    "phases": [
+        {
+            "name": "确定问题",
+            "order": 1,
+            "steps": [
+                {
+                    "name": "提出探究问题",
+                    "description": "基于主题“气候变化”，确定一个具体的探究问题，如“人类活动如何影响全球变暖？” 提示：问题应明确、可探究，并记录思考过程。",
+                    "checkpoints": [
+                        {
+                            "content": "探究问题描述（至少1个问题）",
+                            "evidence_type": "text"
+                        }
+                    ]
+                },
+                {
+                    "name": "形成假设",
+                    "description": "对探究问题提出初步假设，如“人类活动是导致全球变暖的主要原因。” 提示：假设应基于已有知识，并记录来源。",
+                    "checkpoints": [
+                        {
+                            "content": "假设陈述（清晰表述）",
+                            "evidence_type": "text"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "检索资料",
+            "order": 2,
+            "steps": [
+                {
+                    "name": "确定检索策略",
+                    "description": "明确关键词（如“气候变化原因”、“温室气体”）、资料来源类型（课本、科学网站、学术文章）。 提示：制定检索计划，记录策略选择。",
+                    "checkpoints": [
+                        {
+                            "content": "检索计划（列出关键词和资料来源）",
+                            "evidence_type": "document"
+                        }
+                    ]
+                },
+                {
+                    "name": "收集资料",
+                    "description": "从至少3个可靠来源收集资料，如课本、图书馆书籍或可信网站。 提示：记录每个资料的来源信息。",
+                    "checkpoints": [
+                        {
+                            "content": "资料清单（含来源、标题和简要内容）",
+                            "evidence_type": "document"
+                        }
+                    ]
+                }
+            ]
+   
+---
+[debug] generate_called
+---
+[deepseek_content] ok
+{
+    "objectives": {
+        "knowledge": "理解气候变化的基本概念、原因、影响及应对措施，掌握相关科学术语和事实。",
+        "process": "通过文献检索、阅读分析、信息整合和论证，培养探究性学习能力，包括问题提出、假设形成、证据收集和结论形成。",
+        "emotion": "激发对气候问题的关注和责任感，培养科学探究的兴趣和严谨态度。"
+    },
+    "phases": [
+        {
+            "name": "确定问题",
+            "order": 1,
+            "steps": [
+                {
+                    "name": "提出探究问题",
+                    "description": "基于主题“气候变化”，确定一个具体的探究问题，如“人类活动如何影响全球变暖？” 提示：问题应明确、可探究，并记录来源与思考过程。",
+                    "checkpoints": [
+                        {
+                            "content": "探究问题描述（至少1个问题）",
+                            "evidence_type": "text"
+                        }
+                    ]
+                },
+                {
+                    "name": "形成假设",
+                    "description": "对探究问题提出初步假设，如“人类活动是导致全球变暖的主要原因。” 提示：假设应基于已有知识，并记录来源与推理过程。",
+                    "checkpoints": [
+                        {
+                            "content": "假设陈述（清晰表述）",
+                            "evidence_type": "text"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "检索资料",
+            "order": 2,
+            "steps": [
+                {
+                    "name": "确定检索策略",
+                    "description": "明确关键词（如“气候变化原因”、“温室气体”）、资料来源类型（课本、科学网站、学术文章）。 提示：制定检索计划，记录策略选择过程。",
+                    "checkpoints": [
+                        {
+                            "content": "检索计划（含关键词和来源类型）",
+                            "evidence_type": "document"
+                        }
+                    ]
+                },
+                {
+                    "name": "收集资料",
+                    "description": "从至少3个可靠来源（如课本、图书馆书籍、可信网站）收集相关资料。 提示：确保来源多样性，并记录收集过程与来源清单。",
+                    "checkpoints": [
+                        {
+                            "content": "资料清单（含来源和简要内容）",
+                            "evidence_type": "document"
+                        }
+                    ]
+             
+---
+[debug] generate_called
+---
+[debug] generate_called
+---
+[debug] generate_called
+---
+[debug] generate_called
+---
+[debug] generate_called
+---
+[debug] generate_called
+---

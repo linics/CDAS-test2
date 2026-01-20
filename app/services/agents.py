@@ -21,7 +21,7 @@ from app.schemas.step0 import (
     ScoreBreakdown,
     SubmissionContent,
 )
-from app.services.ai import GeminiJSONClient
+from app.services.ai import DeepSeekJSONClient
 from app.services.inventory import InventoryService
 
 
@@ -54,7 +54,7 @@ class AgentService:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self.inventory_service = InventoryService(settings)
-        self.gemini_client = GeminiJSONClient(settings)
+        self.deepseek_client = DeepSeekJSONClient(settings)
 
     def _fetch_chunks(self, document_id: int) -> list[dict]:
         """从 Chroma 获取指定文档的 chunk 数据。"""
@@ -119,11 +119,15 @@ class AgentService:
         if not document:
             raise ValueError("Document not found")
 
-        chunks = self._fetch_chunks(document_id)
+        try:
+            chunks = self._fetch_chunks(document_id)
+        except Exception as e:
+            print(f"Error fetching chunks: {e}")
+            chunks = []
         base_date = datetime.now(timezone.utc)
         cpote_payload: CPOTEAgentPayload | None = None
 
-        if self.gemini_client.is_available and chunks:
+        if self.deepseek_client.is_available and chunks:
             try:
                 cpote_payload = self._call_cpote_agent(document, assignment_title, chunks)
             except Exception:
@@ -169,7 +173,7 @@ class AgentService:
             "请输出 JSON：{\"cpote\": {...}, \"milestones\": [...]}，"
             "source_refs 引用 chunk_id，milestones 描述四个阶段及截止时间。"
         )
-        return self.gemini_client.structured_predict(
+        return self.deepseek_client.structured_predict(
             CPOTEAgentPayload,
             CPOTE_SYSTEM_PROMPT,
             user_prompt,
@@ -260,7 +264,7 @@ class AgentService:
             raise ValueError("Assignment not found for group")
 
         evaluation: EvaluationResult | None = None
-        if self.gemini_client.is_available:
+        if self.deepseek_client.is_available:
             try:
                 evaluation = self._call_evaluation_agent(
                     assignment, milestone_index, content

@@ -1,0 +1,181 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.7, pytest-7.4.4, pluggy-1.0.0
+rootdir: D:\githubfiles\CDAS-test2\CDAS-test2
+plugins: anyio-4.12.0, langsmith-0.5.0
+collected 1 item
+
+tests\test_integration.py F                                              [100%]
+
+================================== FAILURES ===================================
+__________________________ test_assignment_workflow ___________________________
+
+client = <starlette.testclient.TestClient object at 0x0000021C42CE3FB0>
+
+    def test_assignment_workflow(client: TestClient):
+        # 1. Register Teacher
+        client.post(
+            "/api/v2/auth/register",
+            json={
+                "username": "teacher_main",
+                "password": "password",
+                "name": "Teacher Main",
+                "role": "teacher"
+            },
+        )
+        teacher_headers = get_auth_headers(client, "teacher_main", "password")
+    
+        # Initialize subjects
+        client.post("/api/v2/subjects/init")
+    
+        # 2. Register Student
+        client.post(
+            "/api/v2/auth/register",
+            json={
+                "username": "student_main",
+                "password": "password",
+                "name": "Student Main",
+                "role": "student",
+                "grade": 7,
+                "class_name": "1"
+            },
+        )
+        student_headers = get_auth_headers(client, "student_main", "password")
+    
+        # 3. Teacher creates Main Subject (if needed) and Assignment
+        # Check if subjects exist or create one. Assuming subjects are pre-seeded or we create one.
+        # The API for creating subjects might be protected or not exist in v2 public API easily?
+        # Let's check api/v2/subjects.py.
+        # If no subjects, assignment creation might fail unless we use existing ID (seeded 1-9).
+        # We'll try using subject_id=1.
+    
+        assignment_payload = {
+            "title": "Integration Test Assignment",
+            "topic": "Testing",
+            "school_stage": "middle",
+            "grade": 7,
+            "main_subject_id": 1,
+            "assignment_type": "inquiry",
+            "inquiry_depth": "basic",
+            "submission_mode": "once",
+            "duration_weeks": 1
+        }
+    
+        response = client.post(
+            "/api/v2/assignments/",
+            json=assignment_payload,
+            headers=teacher_headers
+        )
+        if response.status_code == 404:
+            # Subject not found? We might need to seed subjects.
+            # But let's assume valid response for now or Assertion Error will tell us.
+            pass
+    
+        assert response.status_code == 201, f"Create assignment failed: {response.text}"
+        assignment_id = response.json()["id"]
+    
+        # 4. publish
+        response = client.post(
+            f"/api/v2/assignments/{assignment_id}/publish",
+            headers=teacher_headers
+        )
+        assert response.status_code == 200
+    
+        # 5. Student lists assignments
+        response = client.get(
+            "/api/v2/assignments/",
+            headers=student_headers
+        )
+        assert response.status_code == 200
+        assignments = response.json()["assignments"]  # PaginatedResponse usually
+        assert any(a["id"] == assignment_id for a in assignments)
+    
+        # 6. Student creates submission
+        submission_payload = {
+            "assignment_id": assignment_id,
+            "content_json": {"text": "My submission content"},
+            "phase_index": 0
+        }
+        response = client.post(
+            "/api/v2/submissions/",
+            json=submission_payload,
+            headers=student_headers
+        )
+        assert response.status_code == 201
+        submission_id = response.json()["id"]
+    
+        # 7. Student submits (finalizes)
+        response = client.post(
+            f"/api/v2/submissions/{submission_id}/submit",
+            headers=student_headers
+        )
+        assert response.status_code == 200
+    
+        # 8. Teacher lists submissions
+        response = client.get(
+            f"/api/v2/submissions/assignment/{assignment_id}",
+            headers=teacher_headers
+        )
+        assert response.status_code == 200
+        submissions = response.json()
+>       assert any(s["id"] == submission_id for s in submissions)
+
+tests\test_integration.py:118: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+.0 = <dict_keyiterator object at 0x0000021C42E8B600>
+
+>   assert any(s["id"] == submission_id for s in submissions)
+E   TypeError: string indices must be integers, not 'str'
+
+tests\test_integration.py:118: TypeError
+============================== warnings summary ===============================
+C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\PyPDF2\__init__.py:21
+  C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\PyPDF2\__init__.py:21: DeprecationWarning: PyPDF2 is deprecated. Please move to the pypdf library instead.
+    warnings.warn(
+
+app\api\v2\auth.py:41
+  D:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\auth.py:41: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class UserResponse(BaseModel):
+
+app\api\v2\subjects.py:22
+  D:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\subjects.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SubjectResponse(BaseModel):
+
+app\api\v2\assignments.py:84
+  D:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\assignments.py:84: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class AssignmentResponse(BaseModel):
+
+app\api\v2\assignments.py:121
+  D:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\assignments.py:121: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class GroupResponse(BaseModel):
+
+app\api\v2\submissions.py:47
+  D:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\submissions.py:47: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SubmissionResponse(BaseModel):
+
+app\api\v2\evaluations.py:51
+  D:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\evaluations.py:51: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class EvaluationResponse(BaseModel):
+
+app\main.py:33
+  D:\githubfiles\CDAS-test2\CDAS-test2\app\main.py:33: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\applications.py:4580
+  C:\Users\linic\AppData\Roaming\Python\Python312\site-packages\fastapi\applications.py:4580: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_integration.py::test_assignment_workflow - TypeError: strin...
+======================== 1 failed, 9 warnings in 0.28s ========================
