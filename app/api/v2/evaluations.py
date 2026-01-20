@@ -84,6 +84,53 @@ class AIEvaluationSuggestion(BaseModel):
     evidence: List[Dict[str, str]] = Field(default_factory=list)
 
 
+_LEVEL_LABELS = {
+    "excellent": "优秀",
+    "good": "良好",
+    "pass": "合格",
+    "improve": "需改进",
+}
+
+
+def _level_label(level: str) -> str:
+    return _LEVEL_LABELS.get(level, "")
+
+
+def _normalize_level_input(value: Any) -> str:
+    if isinstance(value, EvaluationLevel):
+        return value.value
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in _LEVEL_LABELS:
+            return cleaned
+        if cleaned in {"a", "b", "c", "d"}:
+            return {"a": "excellent", "b": "good", "c": "pass", "d": "improve"}[cleaned]
+        if cleaned in {"优秀", "良好", "合格", "需改进"}:
+            return {
+                "优秀": "excellent",
+                "良好": "good",
+                "合格": "pass",
+                "需改进": "improve",
+            }[cleaned]
+    try:
+        numeric = int(float(value))
+    except Exception:
+        return "improve"
+    if numeric >= 90:
+        return "excellent"
+    if numeric >= 75:
+        return "good"
+    if numeric >= 60:
+        return "pass"
+    if numeric >= 4:
+        return "excellent"
+    if numeric == 3:
+        return "good"
+    if numeric == 2:
+        return "pass"
+    return "improve"
+
+
 def _normalize_rubric_dimensions(rubric: Dict[str, Any]) -> List[Dict[str, Any]]:
     dimensions = rubric.get("dimensions") or []
     normalized: List[Dict[str, Any]] = []
@@ -125,13 +172,7 @@ def _compute_weighted_score(dimensions: List[Dict[str, Any]], scores: Dict[str, 
 
 
 def _score_to_level(score: int) -> str:
-    if score >= 90:
-        return "A"
-    if score >= 75:
-        return "B"
-    if score >= 60:
-        return "C"
-    return "D"
+    return _normalize_level_input(score)
 
 
 def _format_phase_context(phase: Dict[str, Any] | None) -> str:

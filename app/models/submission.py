@@ -1,4 +1,4 @@
-"""提交与评价模型定义。"""
+﻿"""提交与评价模型定义。"""
 
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -101,11 +101,11 @@ class Evaluation(Base):
     )
     
     # 评分 (7.2节)
-    score_level: Mapped[EvaluationLevel] = mapped_column(Enum(EvaluationLevel))  # A/B/C/D
-    score_numeric: Mapped[Optional[int]] = mapped_column(Integer)  # 0-100
+    score_level: Mapped[EvaluationLevel] = mapped_column(Enum(EvaluationLevel))  # excellent/good/pass/improve
+    score_numeric: Mapped[Optional[int]] = mapped_column(Integer)  # 1-4
     
     # 各维度得分 (7.1节)
-    # 格式: {"实践准备": 85, "实践参与": 90, ...}
+    # 格式: {"实践准备": 4, "实践参与": 3, ...}
     dimension_scores_json: Mapped[Dict[str, int]] = mapped_column(JSON, default=dict)
     
     # 反馈内容
@@ -139,3 +139,4 @@ class Evaluation(Base):
     
     def __repr__(self) -> str:
         return f"<Evaluation(id={self.id}, type={self.evaluation_type.value}, level={self.score_level})>"
+

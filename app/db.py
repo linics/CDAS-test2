@@ -263,7 +263,6 @@ def ensure_sqlite_assignments_schema(db_engine: Engine) -> None:
             {},
             updates=[
                 "UPDATE evaluations SET evaluation_type = UPPER(evaluation_type)",
-                "UPDATE evaluations SET score_level = UPPER(score_level)",
             ],
         )
 
