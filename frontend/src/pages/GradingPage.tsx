@@ -10,11 +10,17 @@ const GradingPage: React.FC = () => {
     const queryClient = useQueryClient();
 
     const [evaluation, setEvaluation] = useState<Partial<TeacherEvaluationCreate>>({
-        score_level: 'B',
-        score_numeric: 80,
+        score_numeric: 3,
         feedback: '',
         dimension_scores_json: {},
     });
+    const scoreLabels: Record<number, string> = {
+        1: '需改进',
+        2: '合格',
+        3: '良好',
+        4: '优秀',
+    };
+    const getScoreLabel = (score?: number) => scoreLabels[score ?? 3] || '良好';
 
     // 获取提交详情
     const { data: submissionData } = useQuery({
@@ -40,7 +46,6 @@ const GradingPage: React.FC = () => {
             const suggestion = data.data.suggestion;
             setEvaluation(prev => ({
                 ...prev,
-                score_level: suggestion.suggested_level,
                 score_numeric: suggestion.suggested_score,
                 feedback: suggestion.feedback,
                 dimension_scores_json: suggestion.dimension_scores,
@@ -70,7 +75,6 @@ const GradingPage: React.FC = () => {
         if (!submissionId) return;
         submitEvalMutation.mutate({
             submission_id: Number(submissionId),
-            score_level: evaluation.score_level as any,
             score_numeric: evaluation.score_numeric,
             feedback: evaluation.feedback || '',
             dimension_scores_json: evaluation.dimension_scores_json,
@@ -179,14 +183,15 @@ const GradingPage: React.FC = () => {
                                     <div className="flex justify-between">
                                         <label className="text-sm font-medium text-gray-700">{dim.name} (权重 {dim.weight}%)</label>
                                         <span className="text-sm font-bold text-blue-600">
-                                            {evaluation.dimension_scores_json?.[dim.name] || 0} 分
+                                            {evaluation.dimension_scores_json?.[dim.name] ?? 3} 分（{getScoreLabel(evaluation.dimension_scores_json?.[dim.name])}）
                                         </span>
                                     </div>
                                     <input
                                         type="range"
-                                        min="0"
-                                        max="100"
-                                        value={evaluation.dimension_scores_json?.[dim.name] || 0}
+                                        min="1"
+                                        max="4"
+                                        step="1"
+                                        value={evaluation.dimension_scores_json?.[dim.name] ?? 3}
                                         onChange={(e) => handleDimensionScoreChange(dim.name, Number(e.target.value))}
                                         className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                                     />
@@ -199,29 +204,23 @@ const GradingPage: React.FC = () => {
                     </div>
 
                     {/* 总评 */}
-                    <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl">
-                        <div className="space-y-1">
-                            <label className="block text-sm font-medium text-gray-700">总分 (0-100)</label>
-                            <input
-                                type="number"
-                                value={evaluation.score_numeric}
-                                onChange={(e) => setEvaluation(prev => ({ ...prev, score_numeric: Number(e.target.value) }))}
-                                className="w-full border rounded p-2"
-                            />
+                    <div className="bg-gray-50 p-4 rounded-xl space-y-2">
+                        <div className="flex justify-between items-center">
+                            <label className="block text-sm font-medium text-gray-700">总评价</label>
+                            <span className="text-sm font-bold text-blue-600">
+                                {evaluation.score_numeric ?? 3} 分（{getScoreLabel(evaluation.score_numeric)}）
+                            </span>
                         </div>
-                        <div className="space-y-1">
-                            <label className="block text-sm font-medium text-gray-700">等级评定</label>
-                            <select
-                                value={evaluation.score_level}
-                                onChange={(e) => setEvaluation(prev => ({ ...prev, score_level: e.target.value as any }))}
-                                className="w-full border rounded p-2"
-                            >
-                                <option value="A">A - 优秀</option>
-                                <option value="B">B - 良好</option>
-                                <option value="C">C - 合格</option>
-                                <option value="D">D - 需改进</option>
-                            </select>
-                        </div>
+                        <input
+                            type="range"
+                            min="1"
+                            max="4"
+                            step="1"
+                            value={evaluation.score_numeric ?? 3}
+                            onChange={(e) => setEvaluation(prev => ({ ...prev, score_numeric: Number(e.target.value) }))}
+                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                        />
+                        <div className="text-xs text-gray-500">1=需改进，2=合格，3=良好，4=优秀</div>
                     </div>
 
                     {/* 评语 */}
