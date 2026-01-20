@@ -138,15 +138,10 @@ def _normalize_rubric_dimensions(rubric: Dict[str, Any]) -> List[Dict[str, Any]]
         for idx, dim in enumerate(dimensions, start=1):
             if isinstance(dim, dict):
                 name = dim.get("name") or dim.get("dimension") or f"Dimension {idx}"
-                weight = dim.get("weight")
-                try:
-                    weight = int(weight)
-                except Exception:
-                    weight = 0
-                description = dim.get("description") or ""
-                normalized.append({"name": name, "weight": weight, "description": description})
+                levels = dim.get("levels") if isinstance(dim.get("levels"), dict) else {}
+                normalized.append({"name": name, "levels": levels})
             elif isinstance(dim, str):
-                normalized.append({"name": dim, "weight": 0, "description": ""})
+                normalized.append({"name": dim, "levels": {}})
     return normalized
 
 
@@ -154,21 +149,38 @@ def _clamp_score(value: Any) -> int:
     try:
         score = int(float(value))
     except Exception:
+        return 1
+    return max(1, min(4, score))
+
+
+def _level_to_score(level: str) -> int:
+    return {
+        "excellent": 4,
+        "good": 3,
+        "pass": 2,
+        "improve": 1,
+    }.get(level, 2)
+
+
+def _normalize_dimension_scores(
+    dimensions: List[Dict[str, Any]],
+    scores: Dict[str, Any],
+    fallback: int = 2,
+) -> Dict[str, int]:
+    normalized: Dict[str, int] = {}
+    for dim in dimensions:
+        name = dim.get("name")
+        raw_value = scores.get(name, fallback)
+        level = _normalize_level_input(raw_value)
+        normalized[name] = _clamp_score(_level_to_score(level))
+    return normalized
+
+
+def _compute_average_score(scores: Dict[str, int]) -> int:
+    if not scores:
         return 0
-    return max(0, min(100, score))
-
-
-def _compute_weighted_score(dimensions: List[Dict[str, Any]], scores: Dict[str, int]) -> int:
-    if not dimensions:
-        return _clamp_score(sum(scores.values()) / len(scores)) if scores else 0
-    weights = [max(0, int(dim.get("weight") or 0)) for dim in dimensions]
-    if sum(weights) == 0:
-        weights = [1 for _ in dimensions]
-    total_weight = sum(weights)
-    total = 0.0
-    for dim, weight in zip(dimensions, weights):
-        total += _clamp_score(scores.get(dim["name"], 0)) * weight
-    return _clamp_score(total / total_weight)
+    average = sum(scores.values()) / len(scores)
+    return _clamp_score(int(average + 0.5))
 
 
 def _score_to_level(score: int) -> str:
@@ -371,8 +383,8 @@ async def ai_assist_evaluation(
     checkpoints = submission.checkpoints_json or {}
 
     system_prompt = (
-        "You are a rigorous teacher. Score each rubric dimension from 0-100, "
-        "cite evidence from the submission, and compute a weighted overall score. "
+        "You are a rigorous teacher. Score each rubric dimension from 1-4, "
+        "cite evidence from the submission, and compute an overall average score. "
         "Return JSON only."
     )
 
@@ -390,11 +402,11 @@ async def ai_assist_evaluation(
         f"- text: {submission_text}\n"
         f"- attachments: {attachments}\n"
         f"- checkpoints: {checkpoints}\n\n"
-        "Rubric (dimensions with weights and descriptions):\n"
+        "Rubric (dimensions with levels):\n"
         f"{rubric_text}\n\n"
         "Return JSON with fields:\n"
-        "- suggested_score (0-100, weighted by rubric)\n"
-        "- suggested_level (A/B/C/D)\n"
+        "- suggested_score (1-4, average)\n"
+        "- suggested_level (excellent/good/pass/improve)\n"
         "- dimension_scores (object with keys exactly matching rubric dimension names)\n"
         "- feedback (concise)\n"
         "- evidence (list of {source, quote, reason})\n"
@@ -410,8 +422,8 @@ async def ai_assist_evaluation(
             suggestion = None
 
     if suggestion is None:
-        fallback_scores = {dim["name"]: 70 for dim in rubric_dims}
-        overall = _compute_weighted_score(rubric_dims, fallback_scores)
+        fallback_scores = {dim["name"]: 2 for dim in rubric_dims}
+        overall = _compute_average_score(fallback_scores)
         suggestion = AIEvaluationSuggestion(
             suggested_level=_score_to_level(overall),
             suggested_score=overall,
@@ -420,12 +432,12 @@ async def ai_assist_evaluation(
             evidence=[],
         )
 
-    normalized_scores: Dict[str, int] = {}
-    for dim in rubric_dims:
-        name = dim["name"]
-        raw_value = suggestion.dimension_scores.get(name, suggestion.suggested_score)
-        normalized_scores[name] = _clamp_score(raw_value)
-    overall_score = _compute_weighted_score(rubric_dims, normalized_scores)
+    normalized_scores = _normalize_dimension_scores(
+        rubric_dims,
+        suggestion.dimension_scores,
+        fallback=suggestion.suggested_score,
+    )
+    overall_score = _compute_average_score(normalized_scores)
     suggestion.suggested_score = overall_score
     suggestion.suggested_level = _score_to_level(overall_score)
     suggestion.dimension_scores = normalized_scores
