@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
+﻿import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { FileUpload } from '@/components/FileUpload';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -81,7 +81,7 @@ export default function InventoryPage() {
     if (isError) return <div className="p-8 text-red-500">加载文档失败。请确保后端已启动。</div>;
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 archive-section">
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">知识资料库</h1>

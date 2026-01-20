@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { assignmentsApi, subjectsApi, apiClient } from '../lib/api';
@@ -240,7 +240,7 @@ const AssignmentDesignPage: React.FC = () => {
                 </h1>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-8">
+            <form onSubmit={handleSubmit} className="space-y-8 archive-section">
 
                 {/* 基本信息 */}
                 <section className="bg-white p-6 rounded-xl border space-y-4">

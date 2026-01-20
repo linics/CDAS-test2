@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { apiClient } from '@/lib/api';
@@ -67,7 +67,7 @@ export default function GroupsPage() {
     if (isLoading) return <div className="p-8 flex justify-center"><Loader2 className="animate-spin" /></div>;
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 archive-section">
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">学生小组</h1>

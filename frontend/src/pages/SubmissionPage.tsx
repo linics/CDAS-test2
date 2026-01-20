@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { apiClient } from '@/lib/api';
@@ -60,7 +60,7 @@ export default function SubmissionPage() {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 archive-section">
             <div>
                 <h1 className="text-3xl font-bold tracking-tight">提交与评估</h1>
                 <p className="text-muted-foreground">提交里程碑进度并接收 AI 反馈。</p>

@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+﻿import { useQuery } from '@tanstack/react-query';
 import { useParams, Link } from 'react-router-dom';
 import { assignmentsApi } from '@/lib/api';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -42,10 +42,10 @@ export default function AssignmentPage() {
     if (isError || !assignment) return <div className="p-8 text-red-500">加载作业失败。</div>;
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-8 archive-section">
             <div className="flex justify-between items-start">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">{assignment.title}</h1>
+                    <h1 className="text-3xl font-bold tracking-tight archive-title">{assignment.title}</h1>
                     <p className="text-muted-foreground mt-2 max-w-2xl">
                         {assignment.cpote?.problem_statement || "未找到问题陈述。"}
                     </p>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { assignmentsApi, submissionsApi } from '../lib/api';
@@ -26,7 +26,7 @@ const AssignmentSubmissionsPage: React.FC = () => {
     if (isLoading) return <div className="p-8 text-center">加载中...</div>;
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 archive-section">
             <div className="flex items-center gap-4 border-b pb-4">
                 <Link to="/assignments" className="text-gray-500 hover:text-gray-800">
                     &larr; 返回列表
