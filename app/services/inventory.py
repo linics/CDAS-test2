@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from chromadb import PersistentClient
+from chromadb.errors import InvalidArgumentError
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
@@ -138,12 +139,16 @@ class InventoryService:
         if subject_ids:
             where = {"subject_id": {"$in": subject_ids}}
         collection = self.get_collection()
-        result = collection.query(
-            query_embeddings=[embeddings[0]],
-            n_results=limit,
-            where=where,
-            include=["metadatas", "documents"],
-        )
+        try:
+            result = collection.query(
+                query_embeddings=[embeddings[0]],
+                n_results=limit,
+                where=where,
+                include=["metadatas", "documents"],
+            )
+        except InvalidArgumentError as exc:
+            print(f"Chroma query skipped due to embedding mismatch: {exc}")
+            return []
         documents = (result.get("documents") or [[]])[0]
         metadatas = (result.get("metadatas") or [[]])[0]
         chunks: list[dict] = []

@@ -120,9 +120,9 @@ def test_assignment_workflow(client: TestClient):
     # 9. Teacher grades submission
     evaluation_payload = {
         "submission_id": submission_id,
-        "score_numeric": 90,
-        "score_level": "A",
-        "dimension_scores_json": {"Creativity": 5},
+        "score_numeric": 4,
+        "score_level": "excellent",
+        "dimension_scores_json": {"Creativity": 4},
         "feedback": "Good job",
         "evaluation_type": "teacher"
     }
@@ -132,4 +132,4 @@ def test_assignment_workflow(client: TestClient):
         headers=teacher_headers
     )
     assert response.status_code == 200
-    assert response.json()["score_numeric"] == 90
+    assert response.json()["score_numeric"] == 4
