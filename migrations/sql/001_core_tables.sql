@@ -1,0 +1,1 @@
+ALTER TABLE assignments ADD COLUMN topic VARCHAR(255);
