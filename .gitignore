@@ -1,7 +1,45 @@
+# Python
 __pycache__/
 *.pyc
-.worktrees/
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Environment Variables
+.env
+.env.local
+.env.*
+
+# Logs
+*.log
+logs/
 server*.log
 storage/*.log
+
+# Database
+*.db
+*.sqlite3
 storage/*.db
 storage/chroma/
+*.bak
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project specific
+.worktrees/
+storage/ai_debug.log
