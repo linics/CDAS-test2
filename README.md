@@ -1,55 +1,36 @@
-# Cross-Disciplinary Assignment System (CDAS)
+# CDAS（Cross-Disciplinary Assignment System）
 
-CDAS 是一个面向 K12 教育的跨学科作业设计与评价系统。它利用 AI 辅助教师设计高质量的跨学科作业，并对学生的作业进行多维度评价。
+CDAS 是一套面向 K12 场景的跨学科作业系统，支持教师端作业设计、教案一键生成、过程性提交与教师评价，并提供知识库（RAG）能力辅助任务生成。
 
-详细设计文档请参考 `docs/PRODUCT_DESIGN.md`。
+## 功能概览
 
-## 核心功能
-
-- **作业设计 (Assignment Design v2)**：支持以核心学科为基础，融合多学科知识的作业生成。
-- **智能评价 (AI Evaluation v2)**：基于知识、能力、情感等多维度的 AI 自动评价。
-- **知识库 (Knowledge Base)**：支持上传 PDF/Word 格式的教学资料和课程标准（RAG）。
-- **用户管理**：区分教师（设计/发布）与学生（提交/查看）角色。
+- 教师端：创建/编辑/发布作业，支持 AI 预览与“从教案一键生成”。
+- 学生端：按阶段提交成果，查看反馈与评分。
+- 评价端：教师评分 + AI 辅助建议（证据绑定）。
+- 知识库：上传文档、切片入库、向量检索，为生成提供参考上下文。
+- 班级与小组：支持班级成员管理与作业小组协作。
 
 ## 技术栈
 
-### Backend
-- **Framework**: FastAPI (v0.110+) + Pydantic v2
-- **Database**: SQLAlchemy 2.x + SQLite (dev)
-- **Vector DB**: ChromaDB (for RAG)
-- **AI Model**: DeepSeek (deepseek-chat) via DeepSeek API
-- **Embedding**: BAAI/bge-large-zh-v1.5 via SiliconFlow API
-- **Tools**: PyPDF2, python-docx
+- Backend：FastAPI、Pydantic v2、SQLAlchemy 2.x、SQLite（开发环境）
+- AI/RAG：DeepSeek、SiliconFlow Embedding、ChromaDB
+- Frontend：React 18、Vite、TypeScript、Tailwind
 
-### Frontend
-- **Framework**: React 18 + Vite
-- **Styling**: Tailwind CSS + Shadcn UI (Archive Theme)
-- **State**: TanStack Query + Context API
+## 快速启动
 
-## 快速开始
-
-### 1. 后端设置
+### 1) 启动后端
 
 ```bash
-# 创建虚拟环境
 python -m venv .venv
-.\.venv\Scripts\activate  # Windows
-
-# 安装依赖
+.\.venv\Scripts\activate
 pip install -r requirements.txt
-
-# 配置环境变量 (参考 .env.example)
-# 必须设置 API KEY 才能使用 AI 功能
-# CDAS_DEEPSEEK_API_KEY=sk-...
-# CDAS_SILICONFLOW_API_KEY=sk-...
-
-# 启动服务
-uvicorn app.main:app --reload
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-后端服务启动在: `http://127.0.0.1:8000`
+后端地址：`http://127.0.0.1:8000`  
+Swagger：`http://127.0.0.1:8000/docs`
 
-### 2. 前端设置
+### 2) 启动前端
 
 ```bash
 cd frontend
@@ -57,96 +38,79 @@ npm install
 npm run dev:local
 ```
 
-前端服务启动在: `http://127.0.0.1:5173`
+前端地址：`http://127.0.0.1:5173`
 
-说明：当前前端主目录已合并到本仓库 `frontend/`。
-历史独立前端目录 `D:\githubfiles\cdas-frontend-main` 可作为参考归档。
+## 常用质量检查
 
-快速上手指引（15分钟）请参考：
-
-- `frontend\docs\integration\onboarding-15min.md`
-
-## API 文档
-
-访问 Swagger UI 查看详细接口定义：`http://127.0.0.1:8000/docs`
-
-### V2 API (主业务)
-所有 V2 接口均以 `/api/v2` 为前缀：
-- **认证**: `/api/v2/auth` (Login, Register, Me)
-- **学科**: `/api/v2/subjects` (CRUD)
-- **作业**: `/api/v2/assignments` (Design, List)
-- **提交**: `/api/v2/submissions` (Grade, Feedback)
-- **评价**: `/api/v2/evaluations`
-
-### Legacy/Utils API
-- **文档管理**: `/api/documents` (Upload, List)
-
-## 质量基线检查（Normalization）
-
-在合并或发版前，建议执行：
+### 后端基线检查
 
 ```bash
 python scripts/check_backend_quality.py
 ```
 
-该命令会依次执行：
-
-- `python -m compileall -q app scripts tests`
-- `python -m pytest -q`
-
-如仅需快速语法检查，可使用：
+快速模式（跳过测试）：
 
 ```bash
 python scripts/check_backend_quality.py --skip-tests
 ```
 
-### 重建知识库索引（推荐）
-
-当文档历史索引异常（如 embedding 维度不一致）时，可执行重建：
+### 前端检查
 
 ```bash
-.venv\Scripts\python.exe scripts/reindex_documents.py
+cd frontend
+npm run check:lint
+npm run check:typecheck
+npm run check:test
+npm run check:build
 ```
 
-该脚本会：
-- 重建 `cdas-documents` 向量集合
-- 遍历现有 `documents` 记录并从文件重新解析、切片、入库
-- 回写 `parsing_status / metadata_json / error_msg`
-
-### 批量导入课标文档
+### API 联调冒烟
 
 ```bash
-.venv\Scripts\python.exe scripts/seed_knowledge_base.py
+cd frontend
+npm run check:api-e2e
 ```
 
-## 项目结构
+## 环境变量（关键项）
 
-```
+建议在项目根目录配置 `.env`（可参考 `.env.example`）：
+
+- `CDAS_DATABASE_URL`（默认可用 SQLite）
+- `CDAS_DEEPSEEK_API_KEY`
+- `CDAS_DEEPSEEK_MODEL`（默认 `deepseek-chat`）
+- `CDAS_SILICONFLOW_API_KEY`
+- `CDAS_SILICONFLOW_EMBEDDING_MODEL`
+
+未配置 AI Key 时，系统会以默认模板/降级逻辑继续运行核心流程，但 AI 能力会受限。
+
+## 目录结构
+
+```text
 CDAS-test2/
-├── app/                 # 后端核心逻辑
-│   ├── api/v2/          # V2 RESTful API 路由
-│   ├── models/          # SQLAlchemy 数据库模型
-│   ├── services/        # 业务逻辑 (AI, RAG, etc.)
-│   └── main.py          # 应用入口
-├── docs/                # 设计文档
-├── scripts/             # 辅助脚本 (Clean, Seed)
-└── storage/             # 数据库与文件存储 (Git ignored)
+├─ app/                         # 后端应用
+│  ├─ api/v2/                   # 业务 API（auth/assignments/submissions/evaluations/classes）
+│  ├─ models/                   # 数据模型
+│  ├─ services/                 # AI、RAG、知识库服务
+│  └─ main.py                   # 应用入口
+├─ frontend/                    # 前端应用（已合并到本仓）
+│  ├─ src/app/
+│  ├─ scripts/
+│  └─ docs/integration/
+├─ migrations/sql/              # SQL 迁移脚本
+├─ scripts/                     # 后端运维与质量脚本
+└─ storage/                     # 运行时数据（本地）
 ```
 
-Canonical frontend repository (external):
+## 集成文档入口
 
-- `D:\githubfiles\CDAS-test2\CDAS-test2\frontend`
+推荐优先查看：
 
-Legacy frontend reference (not canonical):
+- `frontend/docs/integration/onboarding-15min.md`
+- `frontend/docs/integration/release-gate-checklist.md`
+- `frontend/docs/integration/issue-009-prompt-ui-spec.md`
+- `frontend/docs/integration/issue-009-prompt-evaluation-results.md`
 
-- `D:\githubfiles\cdas-frontend-main`
+## 备注
 
-## 配置说明 (.env)
-
-| 变量名 | 示例值 | 说明 |
-| :--- | :--- | :--- |
-| `CDAS_DATABASE_URL` | `sqlite:///./storage/cdas.db` | 数据库连接串 |
-| `CDAS_DEEPSEEK_API_KEY` | `sk-...` | DeepSeek API 密钥 (用于文本生成) |
-| `CDAS_DEEPSEEK_MODEL` | `deepseek-chat` | DeepSeek 模型版本 |
-| `CDAS_SILICONFLOW_API_KEY` | `sk-...` | SiliconFlow API 密钥 (用于 Embedding) |
-| `CDAS_SILICONFLOW_EMBEDDING_MODEL` | `BAAI/bge-large-zh-v1.5` | Embedding 模型版本 |
+- 当前仓库即主仓（monorepo），前后端一体维护。
+- 请勿提交运行时产物（如 `storage/chroma`、`storage/documents/*`、`storage/uvicorn.pid`）。
