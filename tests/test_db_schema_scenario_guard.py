@@ -1,4 +1,5 @@
 from sqlalchemy import create_engine, text
+import asyncio
 
 from app.migrations import run_migrations
 
@@ -61,6 +62,10 @@ def test_startup_uses_migrations(monkeypatch) -> None:
     monkeypatch.setattr(main, "engine", create_engine("sqlite:///:memory:"))
 
     app = main.create_app()
-    startup = app.router.on_startup[0]
-    startup()
+
+    async def run_lifespan() -> None:
+        async with app.router.lifespan_context(app):
+            pass
+
+    asyncio.run(run_lifespan())
     assert called["value"]

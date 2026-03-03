@@ -5,6 +5,7 @@
 import asyncio
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 # 添加项目根目录到 path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -18,6 +19,10 @@ from chromadb import PersistentClient
 
 RAW_DIR = Path(__file__).parent.parent / "storage" / "raw" / "curriculum_standards"
 STORAGE_DIR = Path(__file__).parent.parent / "storage"
+
+stdout_handle = cast(Any, sys.stdout)
+if hasattr(stdout_handle, "reconfigure"):
+    stdout_handle.reconfigure(encoding="utf-8", errors="replace")
 
 
 def get_chroma_collection():
@@ -53,6 +58,14 @@ def seed():
         
         try:
             with SessionLocal() as db:
+                existing_doc = db.query(Document).filter(Document.filename == filepath.name).first()
+                if existing_doc:
+                    if existing_doc.source != "system":
+                        existing_doc.source = "system"
+                        db.commit()
+                    print(f"[SKIP] already imported (ID={existing_doc.id})")
+                    continue
+
                 # 1. 创建 Document 记录
                 subjects = db.query(Subject).all()
                 subject_id = None
@@ -72,6 +85,7 @@ def seed():
                 doc = Document(
                     filename=filepath.name,
                     parsing_status=ParsingStatus.INDEXING,
+                    source="system",
                     mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     size_bytes=filepath.stat().st_size,
                     metadata_json={
@@ -96,14 +110,16 @@ def seed():
                 chunks = chunk_pages(doc.id, pages, chunk_size=800, overlap=200)
                 
                 # 4. 向量化
-                embeddings = embedding_provider.embed_texts([c["text"] for c in chunks])
+                texts = [str(c.get("text", "")) for c in chunks]
+                embeddings = embedding_provider.embed_texts(texts)
                 
                 # 5. 存入 ChromaDB
                 if chunks:
-                    collection.upsert(
-                        ids=[c["id"] for c in chunks],
-                        embeddings=embeddings,
-                        metadatas=[
+                    upsert_ids = cast(Any, [c["id"] for c in chunks])
+                    upsert_embeddings = cast(Any, embeddings)
+                    upsert_metadatas = cast(
+                        Any,
+                        [
                             {
                                 "document_id": doc.id,
                                 "page": c["page"],
@@ -114,7 +130,14 @@ def seed():
                             }
                             for c in chunks
                         ],
-                        documents=[c["text"] for c in chunks],
+                    )
+                    upsert_documents = cast(Any, [str(c.get("text", "")) for c in chunks])
+
+                    collection.upsert(
+                        ids=upsert_ids,
+                        embeddings=upsert_embeddings,
+                        metadatas=upsert_metadatas,
+                        documents=upsert_documents,
                     )
                 
                 # 6. 更新状态
@@ -127,11 +150,11 @@ def seed():
                 doc.parsing_status = ParsingStatus.READY
                 db.commit()
                 
-                print(f"✓ ID={doc.id}, {len(chunks)} chunks")
+                print(f"[OK] ID={doc.id}, {len(chunks)} chunks")
                 success += 1
                     
         except Exception as e:
-            print(f"✗ {e}")
+            print(f"[FAIL] {e}")
             failed += 1
     
     print("\n" + "=" * 50)
@@ -139,7 +162,9 @@ def seed():
     print("=" * 50)
     
     # 统计
-    print(f"\n数据库文档数: {success}")
+    with SessionLocal() as db:
+        total_docs = db.query(Document).count()
+    print(f"\n数据库文档数: {total_docs}")
     print(f"ChromaDB 向量数: {collection.count()}")
 
 

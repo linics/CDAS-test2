@@ -26,6 +26,8 @@ storage/*.log
 *.sqlite3
 storage/*.db
 storage/chroma/
+storage/documents/[0-9]*/
+storage/uvicorn.pid
 *.bak
 
 # Testing
@@ -43,3 +45,4 @@ coverage.xml
 # Project specific
 .worktrees/
 storage/ai_debug.log
+frontend_legacy_*/

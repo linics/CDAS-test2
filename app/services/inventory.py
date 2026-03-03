@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, cast
 
 from chromadb import PersistentClient
 from chromadb.errors import InvalidArgumentError
@@ -17,27 +17,95 @@ from app.utils.storage import ensure_directory, remove_directory, save_upload_fi
 from app.utils.text_processing import chunk_pages, parse_document
 
 
+COLLECTION_NAME = "cdas-documents"
+
+
 class InventoryService:
     """封装文档上传与索引流程。"""
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self._chroma_client: PersistentClient | None = None
+        self._chroma_client = None
         self.embedding_provider = EmbeddingProvider(settings)
         self.rerank_provider = RerankProvider(settings)
         ensure_directory(self.settings.documents_dir)
         ensure_directory(self.settings.chroma_persist_dir)
 
     @property
-    def chroma_client(self) -> PersistentClient:
+    def chroma_client(self):
         if self._chroma_client is None:
             self._chroma_client = PersistentClient(path=str(self.settings.chroma_persist_dir))
         return self._chroma_client
 
     def get_collection(self):
         return self.chroma_client.get_or_create_collection(
-            name="cdas-documents",
+            name=COLLECTION_NAME,
             metadata={"hnsw:space": "cosine"},
+        )
+
+    @staticmethod
+    def _is_embedding_dimension_error(exc: Exception) -> bool:
+        message = str(exc).lower()
+        return "dimension" in message and "embedding" in message
+
+    def _reset_collection(self) -> None:
+        try:
+            self.chroma_client.delete_collection(name=COLLECTION_NAME)
+        except Exception:
+            pass
+
+    def _upsert_chunks(
+        self,
+        chunks: list[dict],
+        embeddings: list[list[float]],
+        subject_id: Optional[int],
+        subject_name: Optional[str],
+    ) -> None:
+        if not chunks:
+            return
+
+        ids = [chunk["id"] for chunk in chunks]
+        metadatas = [
+            {
+                "document_id": chunk["document_id"],
+                "page": chunk["page"],
+                "chunk_id": chunk["id"],
+                "order": chunk["order"],
+                **({"subject_id": subject_id} if subject_id is not None else {}),
+                **({"subject_name": subject_name} if subject_name else {}),
+            }
+            for chunk in chunks
+        ]
+        documents = [chunk["text"] for chunk in chunks]
+        upsert_ids = cast(Any, ids)
+        upsert_embeddings = cast(Any, embeddings)
+        upsert_metadatas = cast(Any, metadatas)
+        upsert_documents = cast(Any, documents)
+
+        collection = self.get_collection()
+        try:
+            collection.upsert(  # type: ignore[arg-type]
+                ids=upsert_ids,
+                embeddings=upsert_embeddings,
+                metadatas=upsert_metadatas,
+                documents=upsert_documents,
+            )
+            return
+        except Exception as exc:
+            if not self._is_embedding_dimension_error(exc):
+                raise
+            print(
+                "Chroma embedding dimension mismatch detected; "
+                "recreating collection and retrying upsert."
+            )
+
+        self._reset_collection()
+        collection = self.get_collection()
+        collection.upsert(  # type: ignore[arg-type]
+            ids=upsert_ids,
+            embeddings=upsert_embeddings,
+            metadatas=upsert_metadatas,
+            documents=upsert_documents,
         )
 
     def _detect_subject_from_filename(
@@ -85,26 +153,21 @@ class InventoryService:
             raw_content = destination.read_bytes()
             pages = parse_document(raw_content, upload.filename or destination.name)
             chunks = chunk_pages(document.id, pages, chunk_size=800, overlap=200)
-            embeddings = self.embedding_provider.embed_texts([c["text"] for c in chunks])
+            texts: list[str] = []
+            for chunk in chunks:
+                text = chunk.get("text", "")
+                texts.append(text if isinstance(text, str) else str(text))
+            embeddings = self.embedding_provider.embed_texts(texts)
 
-            collection = self.get_collection()
             if chunks:
-                collection.upsert(
-                    ids=[c["id"] for c in chunks],
-                    embeddings=embeddings,
-                    metadatas=[
-                        {
-                            "document_id": document.id,
-                            "page": c["page"],
-                            "chunk_id": c["id"],
-                            "order": c["order"],
-                            **({"subject_id": subject_id} if subject_id is not None else {}),
-                            **({"subject_name": subject_name} if subject_name else {}),
-                        }
-                        for c in chunks
-                    ],
-                    documents=[c["text"] for c in chunks],
-                )
+                normalized_chunks = [
+                    {
+                        **chunk,
+                        "document_id": document.id,
+                    }
+                    for chunk in chunks
+                ]
+                self._upsert_chunks(normalized_chunks, embeddings, subject_id, subject_name)
 
             document.metadata_json = {
                 "page_count": len(pages),
@@ -128,6 +191,7 @@ class InventoryService:
         self,
         query: str,
         subject_ids: List[int] | None = None,
+        document_ids: List[int] | None = None,
         limit: int = 12,
     ) -> list[dict]:
         if not query:
@@ -135,18 +199,32 @@ class InventoryService:
         embeddings = self.embedding_provider.embed_texts([query])
         if not embeddings:
             return []
-        where = None
+        where: Any = None
+        filters: List[dict[str, Any]] = []
         if subject_ids:
-            where = {"subject_id": {"$in": subject_ids}}
+            filters.append({"subject_id": {"$in": subject_ids}})
+        if document_ids:
+            filters.append({"document_id": {"$in": document_ids}})
+        if len(filters) == 1:
+            where = filters[0]
+        elif len(filters) > 1:
+            where = {"$and": filters}
         collection = self.get_collection()
         try:
-            result = collection.query(
+            result = collection.query(  # type: ignore[arg-type]
                 query_embeddings=[embeddings[0]],
                 n_results=limit,
                 where=where,
                 include=["metadatas", "documents"],
             )
         except InvalidArgumentError as exc:
+            if self._is_embedding_dimension_error(exc):
+                print(
+                    "Chroma query skipped due to embedding dimension mismatch; "
+                    "recreating collection."
+                )
+                self._reset_collection()
+                return []
             print(f"Chroma query skipped due to embedding mismatch: {exc}")
             return []
         documents = (result.get("documents") or [[]])[0]
@@ -161,6 +239,7 @@ class InventoryService:
                     "page": metadata.get("page"),
                     "order": metadata.get("order"),
                     "text": text,
+                    "document_id": metadata.get("document_id"),
                     "subject_id": metadata.get("subject_id"),
                     "subject_name": metadata.get("subject_name"),
                 }

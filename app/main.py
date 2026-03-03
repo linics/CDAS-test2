@@ -1,6 +1,10 @@
 """FastAPI 入口 - CDAS 跨学科作业系统。"""
 
+from contextlib import asynccontextmanager
+import logging
+
 from fastapi import FastAPI
+from sqlalchemy.exc import OperationalError
 
 from app.api.documents import router as documents_router
 from app.api.v2 import router as v2_router
@@ -12,11 +16,69 @@ from app.migrations import run_migrations
 def create_app() -> FastAPI:
     """应用工厂，便于后续测试与拓展路由。"""
 
-    settings = get_settings()
+    logger = logging.getLogger("cdas.api")
+
+    def init_models() -> None:
+        """启动时确保表存在并初始化学科数据。"""
+        from app.models import (
+            Assignment,
+            ClassGroup,
+            ClassGroupMember,
+            ClassMember,
+            Classroom,
+            Document,
+            Evaluation,
+            PRESET_SUBJECTS,
+            ProjectGroup,
+            Subject,
+            Submission,
+            User,
+        )
+
+        try:
+            # 优先使用迁移脚本管理结构演进。
+            run_migrations(engine)
+        except OperationalError as exc:
+            # 兼容首次启动场景（旧迁移脚本基于既有表做 ALTER）。
+            if "no such table" not in str(exc).lower():
+                raise
+            Base.metadata.create_all(bind=engine)
+            run_migrations(engine)
+        else:
+            # 兜底保证模型中新增但尚未迁移覆盖的表被创建。
+            Base.metadata.create_all(bind=engine)
+        try:
+            with open("storage/ai_status.log", "a", encoding="utf-8") as handle:
+                handle.write(
+                    f"deepseek_api_key_set={bool(get_settings().deepseek_api_key)}\n"
+                )
+        except Exception:
+            pass
+
+        from app.db import SessionLocal
+
+        db = SessionLocal()
+        try:
+            existing = db.query(Subject).first()
+            if not existing:
+                for data in PRESET_SUBJECTS:
+                    subject = Subject(**data)
+                    db.add(subject)
+                db.commit()
+                print("[CDAS] 学科数据已自动初始化")
+        finally:
+            db.close()
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        init_models()
+        yield
+
     app = FastAPI(
         title="CDAS API",
         version="2.0.0",
-        description="跨学科作业系统 API"
+        description="跨学科作业系统 API",
+        lifespan=lifespan,
     )
 
     from fastapi.middleware.cors import CORSMiddleware
@@ -32,55 +94,24 @@ def create_app() -> FastAPI:
     )
 
     from fastapi import Request, Response
-    from starlette.middleware.base import BaseHTTPMiddleware
-    import traceback
 
     @app.middleware("http")
     async def catch_exceptions_middleware(request: Request, call_next):
         try:
             return await call_next(request)
         except Exception:
-            trace = traceback.format_exc()
-            print("Unhandled exception caught by middleware:")
-            print(trace)
+            logger.exception(
+                "Unhandled exception",
+                extra={
+                    "path": str(request.url.path),
+                    "method": request.method,
+                },
+            )
             return Response("Internal Server Error", status_code=500)
-
-    @app.on_event("startup")
-    def init_models() -> None:
-        """启动时确保表存在并初始化学科数据。"""
-        # 导入所有模型确保表被创建
-        from app.models import (
-            Document, User, Subject, Assignment, 
-            ProjectGroup, Submission, Evaluation,
-            PRESET_SUBJECTS
-        )
-        Base.metadata.create_all(bind=engine)
-        run_migrations(engine)
-        try:
-            with open("storage/ai_status.log", "a", encoding="utf-8") as handle:
-                handle.write(
-                    f"deepseek_api_key_set={bool(get_settings().deepseek_api_key)}\n"
-                )
-        except Exception:
-            pass
-        
-        # 自动初始化学科数据
-        from app.db import SessionLocal
-        db = SessionLocal()
-        try:
-            existing = db.query(Subject).first()
-            if not existing:
-                for data in PRESET_SUBJECTS:
-                    subject = Subject(**data)
-                    db.add(subject)
-                db.commit()
-                print("[CDAS] 学科数据已自动初始化")
-        finally:
-            db.close()
 
     @app.get("/health")
     def health() -> dict[str, str]:
-        return {"status": "ok", "database": settings.database_url}
+        return {"status": "ok"}
 
     # 旧版 API (保持兼容)
     app.include_router(documents_router, prefix="/api")

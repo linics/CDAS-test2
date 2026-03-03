@@ -4,13 +4,17 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.db import get_db
 from app.models import (
+    Evaluation,
+    EvaluationType,
     Submission,
     Assignment,
+    ProjectGroup,
     User,
     SubmissionStatus,
     SubmissionMode,
@@ -54,8 +58,7 @@ class AssignmentBrief(BaseModel):
     assignment_type: str
     phases_json: List[Dict[str, Any]]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SubmissionResponse(BaseModel):
@@ -63,6 +66,8 @@ class SubmissionResponse(BaseModel):
     assignment_id: int
     student_id: int
     group_id: Optional[int]
+    group_name: Optional[str] = None
+    group_members: List[Dict[str, Any]] = Field(default_factory=list)
     phase_index: int
     step_index: Optional[int]
     status: SubmissionStatus
@@ -71,12 +76,12 @@ class SubmissionResponse(BaseModel):
     checkpoints_json: Dict[str, bool]
     created_at: datetime
     submitted_at: Optional[datetime]
+    teacher_evaluated_at: Optional[datetime] = None
     # 嵌套作业信息
     assignment: Optional[AssignmentBrief] = None
     next_submission_id: Optional[int] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SubmissionListResponse(BaseModel):
@@ -94,6 +99,208 @@ def _normalize_status(value: Any) -> str:
     return str(value)
 
 
+def _extract_member_ids(members_json: Any) -> set[int]:
+    member_ids: set[int] = set()
+    if not isinstance(members_json, list):
+        return member_ids
+
+    for item in members_json:
+        raw_user_id: Any
+        if isinstance(item, dict):
+            raw_user_id = (
+                item.get("user_id")
+                or item.get("student_id")
+                or item.get("id")
+            )
+        else:
+            raw_user_id = item
+
+        try:
+            if raw_user_id is None:
+                continue
+            user_id = int(str(raw_user_id))
+        except Exception:
+            continue
+
+        if user_id > 0:
+            member_ids.add(user_id)
+
+    return member_ids
+
+
+def _group_ids_for_student(
+    db: Session,
+    student_id: int,
+    assignment_id: Optional[int] = None,
+) -> List[int]:
+    query = db.query(ProjectGroup)
+    if assignment_id is not None:
+        query = query.filter(ProjectGroup.assignment_id == assignment_id)
+
+    groups = query.all()
+    matched: List[int] = []
+    for group in groups:
+        if student_id in _extract_member_ids(group.members_json or []):
+            matched.append(group.id)
+    return matched
+
+
+def _student_has_submission_access(db: Session, submission: Submission, student_id: int) -> bool:
+    if submission.student_id == student_id:
+        return True
+    if not submission.group_id:
+        return False
+    group = db.query(ProjectGroup).filter(ProjectGroup.id == submission.group_id).first()
+    if not group:
+        return False
+    return student_id in _extract_member_ids(group.members_json or [])
+
+
+def _validate_group_submission_target(
+    db: Session,
+    assignment_id: int,
+    group_id: int,
+    student_id: int,
+) -> ProjectGroup:
+    group = (
+        db.query(ProjectGroup)
+        .filter(
+            ProjectGroup.id == group_id,
+            ProjectGroup.assignment_id == assignment_id,
+        )
+        .first()
+    )
+    if not group:
+        raise HTTPException(status_code=400, detail="目标小组不存在或不属于当前作业")
+
+    member_ids = _extract_member_ids(group.members_json or [])
+    if student_id not in member_ids:
+        raise HTTPException(status_code=403, detail="你不在该作业小组中，不能以小组模式提交")
+
+    return group
+
+
+def _build_group_context_map(
+    db: Session,
+    group_ids: List[int],
+) -> Dict[int, Dict[str, Any]]:
+    if not group_ids:
+        return {}
+
+    groups = db.query(ProjectGroup).filter(ProjectGroup.id.in_(group_ids)).all()
+
+    all_member_ids: set[int] = set()
+    for group in groups:
+        all_member_ids.update(_extract_member_ids(group.members_json or []))
+
+    user_name_by_id: Dict[int, str] = {}
+    if all_member_ids:
+        users = db.query(User).filter(User.id.in_(list(all_member_ids))).all()
+        user_name_by_id = {user.id: user.name for user in users}
+
+    context: Dict[int, Dict[str, Any]] = {}
+    for group in groups:
+        members: List[Dict[str, Any]] = []
+        raw_members = group.members_json or []
+        if isinstance(raw_members, list):
+            for item in raw_members:
+                if isinstance(item, dict):
+                    raw_user_id = (
+                        item.get("user_id")
+                        or item.get("student_id")
+                        or item.get("id")
+                    )
+                    try:
+                        if raw_user_id is None:
+                            continue
+                        user_id = int(str(raw_user_id))
+                    except Exception:
+                        continue
+                    if user_id <= 0:
+                        continue
+                    members.append(
+                        {
+                            "user_id": user_id,
+                            "name": item.get("name") or user_name_by_id.get(user_id) or "",
+                            "role": item.get("role") or "",
+                        }
+                    )
+                else:
+                    try:
+                        user_id = int(item)
+                    except Exception:
+                        continue
+                    if user_id <= 0:
+                        continue
+                    members.append(
+                        {
+                            "user_id": user_id,
+                            "name": user_name_by_id.get(user_id) or "",
+                            "role": "",
+                        }
+                    )
+
+        context[group.id] = {
+            "group_name": group.name,
+            "group_members": members,
+        }
+
+    return context
+
+
+def _build_teacher_evaluated_at_map(
+    db: Session,
+    submission_ids: List[int],
+) -> Dict[int, datetime]:
+    if not submission_ids:
+        return {}
+
+    evaluations = (
+        db.query(Evaluation)
+        .filter(
+            Evaluation.submission_id.in_(submission_ids),
+            Evaluation.evaluation_type == EvaluationType.TEACHER,
+        )
+        .order_by(Evaluation.submission_id.asc(), Evaluation.created_at.desc())
+        .all()
+    )
+
+    latest_map: Dict[int, datetime] = {}
+    for item in evaluations:
+        if item.submission_id in latest_map:
+            continue
+        latest_map[item.submission_id] = item.created_at
+    return latest_map
+
+
+def _serialize_submission(
+    submission: Submission,
+    group_context: Optional[Dict[str, Any]] = None,
+    teacher_evaluated_at: Optional[datetime] = None,
+) -> Dict[str, Any]:
+    payload = {
+        "id": submission.id,
+        "assignment_id": submission.assignment_id,
+        "student_id": submission.student_id,
+        "group_id": submission.group_id,
+        "group_name": None,
+        "group_members": [],
+        "phase_index": submission.phase_index,
+        "step_index": submission.step_index,
+        "status": _normalize_status(submission.status),
+        "content_json": submission.content_json or {},
+        "attachments_json": submission.attachments_json or [],
+        "checkpoints_json": submission.checkpoints_json or {},
+        "created_at": submission.created_at,
+        "submitted_at": submission.submitted_at,
+        "teacher_evaluated_at": teacher_evaluated_at,
+    }
+    if group_context:
+        payload["group_name"] = group_context.get("group_name")
+        payload["group_members"] = group_context.get("group_members") or []
+    return payload
+
+
 # === API 端点 ===
 
 @router.post("/", response_model=SubmissionResponse, status_code=status.HTTP_201_CREATED)
@@ -109,6 +316,37 @@ async def create_submission(
         raise HTTPException(status_code=404, detail="作业不存在")
     if not assignment.is_published:
         raise HTTPException(status_code=400, detail="作业尚未发布")
+
+    group_context: Optional[Dict[str, Any]] = None
+    if data.group_id is not None:
+        group = _validate_group_submission_target(
+            db,
+            assignment_id=data.assignment_id,
+            group_id=data.group_id,
+            student_id=current_user.id,
+        )
+        group_context = {
+            "group_name": group.name,
+            "group_members": _build_group_context_map(db, [group.id]).get(group.id, {}).get("group_members", []),
+        }
+
+        existing_group_submission = (
+            db.query(Submission)
+            .filter(
+                Submission.assignment_id == data.assignment_id,
+                Submission.group_id == data.group_id,
+                Submission.phase_index == data.phase_index,
+            )
+            .order_by(Submission.created_at.desc())
+            .first()
+        )
+        if existing_group_submission:
+            evaluated_at_map = _build_teacher_evaluated_at_map(db, [existing_group_submission.id])
+            return _serialize_submission(
+                existing_group_submission,
+                group_context,
+                teacher_evaluated_at=evaluated_at_map.get(existing_group_submission.id),
+            )
     
     submission = Submission(
         assignment_id=data.assignment_id,
@@ -124,7 +362,14 @@ async def create_submission(
     db.add(submission)
     db.commit()
     db.refresh(submission)
-    return submission
+    if submission.group_id and group_context is None:
+        group_context = _build_group_context_map(db, [submission.group_id]).get(submission.group_id)
+    evaluated_at_map = _build_teacher_evaluated_at_map(db, [submission.id])
+    return _serialize_submission(
+        submission,
+        group_context,
+        teacher_evaluated_at=evaluated_at_map.get(submission.id),
+    )
 
 
 @router.get("/my", response_model=SubmissionListResponse)
@@ -134,29 +379,48 @@ async def list_my_submissions(
     current_user: User = Depends(require_student)
 ):
     """学生查看自己的提交历史。"""
-    query = db.query(Submission).options(joinedload(Submission.assignment)).filter(Submission.student_id == current_user.id)
-    
+    query = db.query(Submission).options(joinedload(Submission.assignment))
+
+    group_ids = _group_ids_for_student(db, current_user.id, assignment_id)
+    if group_ids:
+        query = query.filter(
+            or_(
+                Submission.student_id == current_user.id,
+                Submission.group_id.in_(group_ids),
+            )
+        )
+    else:
+        query = query.filter(Submission.student_id == current_user.id)
+
     if assignment_id:
         query = query.filter(Submission.assignment_id == assignment_id)
-    
+
     submissions = query.order_by(Submission.created_at.desc()).all()
-    
+
+    dedup_submissions: List[Submission] = []
+    seen_ids: set[int] = set()
+    for item in submissions:
+        if item.id in seen_ids:
+            continue
+        seen_ids.add(item.id)
+        dedup_submissions.append(item)
+
+    group_context_map = _build_group_context_map(
+        db,
+        [item.group_id for item in dedup_submissions if item.group_id is not None],
+    )
+    evaluated_at_map = _build_teacher_evaluated_at_map(db, [item.id for item in dedup_submissions])
+
     # 手动构造响应以包含嵌套的 assignment 信息
     result = []
-    for sub in submissions:
+    for sub in dedup_submissions:
+        group_context = group_context_map.get(sub.group_id) if sub.group_id else None
         sub_dict = {
-            "id": sub.id,
-            "assignment_id": sub.assignment_id,
-            "student_id": sub.student_id,
-            "group_id": sub.group_id,
-            "phase_index": sub.phase_index,
-            "step_index": sub.step_index,
-            "status": _normalize_status(sub.status),
-            "content_json": sub.content_json or {},
-            "attachments_json": sub.attachments_json or [],
-            "checkpoints_json": sub.checkpoints_json or {},
-            "created_at": sub.created_at,
-            "submitted_at": sub.submitted_at,
+            **_serialize_submission(
+                sub,
+                group_context,
+                teacher_evaluated_at=evaluated_at_map.get(sub.id),
+            ),
             "assignment": {
                 "id": sub.assignment.id,
                 "title": sub.assignment.title,
@@ -167,7 +431,7 @@ async def list_my_submissions(
             } if sub.assignment else None
         }
         result.append(sub_dict)
-    
+
     return {"submissions": result, "total": len(result)}
 
 
@@ -187,24 +451,21 @@ async def get_submission(
         raise HTTPException(status_code=404, detail="submission not found")
 
     from app.models.user import UserRole
-    if current_user.role == UserRole.STUDENT and submission.student_id != current_user.id:
+    if current_user.role == UserRole.STUDENT and not _student_has_submission_access(db, submission, current_user.id):
         raise HTTPException(status_code=403, detail="forbidden")
 
     assignment = db.query(Assignment).filter(Assignment.id == submission.assignment_id).first()
+    group_context = None
+    if submission.group_id:
+        group_context = _build_group_context_map(db, [submission.group_id]).get(submission.group_id)
+    evaluated_at_map = _build_teacher_evaluated_at_map(db, [submission.id])
 
     return {
-        "id": submission.id,
-        "assignment_id": submission.assignment_id,
-        "student_id": submission.student_id,
-        "group_id": submission.group_id,
-        "phase_index": submission.phase_index,
-        "step_index": submission.step_index,
-        "status": _normalize_status(submission.status),
-        "content_json": submission.content_json or {},
-        "attachments_json": submission.attachments_json or [],
-        "checkpoints_json": submission.checkpoints_json or {},
-        "created_at": submission.created_at,
-        "submitted_at": submission.submitted_at,
+        **_serialize_submission(
+            submission,
+            group_context,
+            teacher_evaluated_at=evaluated_at_map.get(submission.id),
+        ),
         "assignment": {
             "id": assignment.id,
             "title": assignment.title,
@@ -226,15 +487,17 @@ async def update_submission(
     submission = db.query(Submission).filter(Submission.id == submission_id).first()
     if not submission:
         raise HTTPException(status_code=404, detail="提交不存在")
-    if submission.student_id != current_user.id:
-        raise HTTPException(status_code=403, detail="只能修改自己的提交")
+    if not _student_has_submission_access(db, submission, current_user.id):
+        raise HTTPException(status_code=403, detail="只能修改自己或所在小组的提交")
     if submission.status == SubmissionStatus.GRADED:
         raise HTTPException(status_code=400, detail="已评分的提交不能修改")
     
     # 检查截止时间
     assignment = db.query(Assignment).filter(Assignment.id == submission.assignment_id).first()
-    if assignment.deadline and datetime.now(timezone.utc) > assignment.deadline:
-        raise HTTPException(status_code=400, detail="已过截止时间，不能修改")
+    if assignment is not None:
+        deadline = assignment.deadline
+        if deadline and datetime.now(timezone.utc) > deadline:
+            raise HTTPException(status_code=400, detail="已过截止时间，不能修改")
     
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
@@ -242,7 +505,15 @@ async def update_submission(
     
     db.commit()
     db.refresh(submission)
-    return submission
+    group_context = None
+    if submission.group_id:
+        group_context = _build_group_context_map(db, [submission.group_id]).get(submission.group_id)
+    evaluated_at_map = _build_teacher_evaluated_at_map(db, [submission.id])
+    return _serialize_submission(
+        submission,
+        group_context,
+        teacher_evaluated_at=evaluated_at_map.get(submission.id),
+    )
 
 
 @router.post("/{submission_id}/submit", response_model=SubmissionResponse)
@@ -255,8 +526,8 @@ async def submit_submission(
     submission = db.query(Submission).filter(Submission.id == submission_id).first()
     if not submission:
         raise HTTPException(status_code=404, detail="提交不存在")
-    if submission.student_id != current_user.id:
-        raise HTTPException(status_code=403, detail="只能提交自己的草稿")
+    if not _student_has_submission_access(db, submission, current_user.id):
+        raise HTTPException(status_code=403, detail="只能提交自己或所在小组的草稿")
     
     submission.status = SubmissionStatus.SUBMITTED
     submission.submitted_at = datetime.now(timezone.utc)
@@ -267,15 +538,26 @@ async def submit_submission(
         phases = assignment.phases_json or []
         next_phase_index = submission.phase_index + 1
         if next_phase_index < len(phases):
-            existing = (
-                db.query(Submission)
-                .filter(
-                    Submission.assignment_id == submission.assignment_id,
-                    Submission.student_id == submission.student_id,
-                    Submission.phase_index == next_phase_index,
+            if submission.group_id is not None:
+                existing = (
+                    db.query(Submission)
+                    .filter(
+                        Submission.assignment_id == submission.assignment_id,
+                        Submission.group_id == submission.group_id,
+                        Submission.phase_index == next_phase_index,
+                    )
+                    .first()
                 )
-                .first()
-            )
+            else:
+                existing = (
+                    db.query(Submission)
+                    .filter(
+                        Submission.assignment_id == submission.assignment_id,
+                        Submission.student_id == submission.student_id,
+                        Submission.phase_index == next_phase_index,
+                    )
+                    .first()
+                )
             if existing:
                 next_submission_id = existing.id
             else:
@@ -295,8 +577,17 @@ async def submit_submission(
 
     db.commit()
     db.refresh(submission)
-    setattr(submission, "next_submission_id", next_submission_id)
-    return submission
+    group_context = None
+    if submission.group_id:
+        group_context = _build_group_context_map(db, [submission.group_id]).get(submission.group_id)
+    evaluated_at_map = _build_teacher_evaluated_at_map(db, [submission.id])
+    payload = _serialize_submission(
+        submission,
+        group_context,
+        teacher_evaluated_at=evaluated_at_map.get(submission.id),
+    )
+    payload["next_submission_id"] = next_submission_id
+    return payload
 
 
 @router.delete("/{submission_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -309,8 +600,8 @@ async def delete_submission(
     submission = db.query(Submission).filter(Submission.id == submission_id).first()
     if not submission:
         raise HTTPException(status_code=404, detail="提交不存在")
-    if submission.student_id != current_user.id:
-        raise HTTPException(status_code=403, detail="只能删除自己的提交")
+    if not _student_has_submission_access(db, submission, current_user.id):
+        raise HTTPException(status_code=403, detail="只能删除自己或所在小组的提交")
     if submission.status != SubmissionStatus.DRAFT:
         raise HTTPException(status_code=400, detail="只能删除草稿状态的提交")
     
@@ -324,6 +615,7 @@ async def delete_submission(
 async def list_assignment_submissions(
     assignment_id: int,
     phase_index: Optional[int] = None,
+    group_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -331,11 +623,33 @@ async def list_assignment_submissions(
     from app.models.user import UserRole
     if current_user.role != UserRole.TEACHER:
         raise HTTPException(status_code=403, detail="需要教师权限")
+
+    assignment = db.query(Assignment).filter(Assignment.id == assignment_id).first()
+    if not assignment:
+        raise HTTPException(status_code=404, detail="作业不存在")
+    if assignment.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="只能查看自己创建的作业提交")
     
     query = db.query(Submission).filter(Submission.assignment_id == assignment_id)
     
     if phase_index is not None:
         query = query.filter(Submission.phase_index == phase_index)
+
+    if group_id is not None:
+        query = query.filter(Submission.group_id == group_id)
     
     submissions = query.order_by(Submission.submitted_at.desc()).all()
-    return {"submissions": submissions, "total": len(submissions)}
+    group_context_map = _build_group_context_map(
+        db,
+        [item.group_id for item in submissions if item.group_id is not None],
+    )
+    evaluated_at_map = _build_teacher_evaluated_at_map(db, [item.id for item in submissions])
+    result = [
+        _serialize_submission(
+            item,
+            group_context_map.get(item.group_id) if item.group_id else None,
+            teacher_evaluated_at=evaluated_at_map.get(item.id),
+        )
+        for item in submissions
+    ]
+    return {"submissions": result, "total": len(result)}

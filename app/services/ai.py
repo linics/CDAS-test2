@@ -20,9 +20,22 @@ T = TypeVar("T", bound=BaseModel)
 class EmbeddingProvider:
     """包装 SiliconFlow Embedding，未配置时回退到哈希向量。"""
 
-    def __init__(self, settings: Settings, dim: int = 768) -> None:
+    def __init__(self, settings: Settings, dim: int | None = None) -> None:
         self.settings = settings
-        self.dim = dim
+        self.dim = dim or self._infer_default_dim(settings.siliconflow_embedding_model)
+
+    @staticmethod
+    def _infer_default_dim(model_name: str) -> int:
+        lowered = (model_name or "").lower()
+        if "bge-large" in lowered:
+            return 1024
+        if "bge-base" in lowered:
+            return 768
+        if "bge-small" in lowered:
+            return 384
+        if "bge" in lowered and "m3" in lowered:
+            return 1024
+        return 1024
 
     def embed_texts(self, texts: Sequence[str]) -> List[List[float]]:
         if not texts:
@@ -53,6 +66,13 @@ class EmbeddingProvider:
         embeddings = [item.get("embedding", []) for item in data]
         if len(embeddings) != len(texts):
             raise RuntimeError("SiliconFlow embeddings size mismatch")
+        if embeddings:
+            vector_dim = len(embeddings[0])
+            if vector_dim <= 0:
+                raise RuntimeError("SiliconFlow returned empty embedding vector")
+            if any(len(vector) != vector_dim for vector in embeddings):
+                raise RuntimeError("SiliconFlow returned inconsistent embedding dimensions")
+            self.dim = vector_dim
         return embeddings
 
     def _fallback_embeddings(self, texts: Sequence[str]) -> List[List[float]]:
@@ -108,10 +128,15 @@ class RerankProvider:
         for item in data:
             if not isinstance(item, dict):
                 continue
-            index = item.get("index")
+            index_raw = item.get("index")
             score = item.get("relevance_score", item.get("score", 0))
+            if index_raw is None:
+                continue
+            index_text = str(index_raw).strip()
+            if not index_text:
+                continue
             try:
-                index = int(index)
+                index = int(float(index_text))
             except Exception:
                 continue
             try:
@@ -138,10 +163,12 @@ class DeepSeekJSONClient:
         settings: Settings,
         temperature: float = 0.2,
         max_output_tokens: int = 2048,
+        request_timeout: int = 60,
     ) -> None:
         self.settings = settings
         self.temperature = temperature
         self.max_output_tokens = max_output_tokens
+        self.request_timeout = request_timeout
 
     @property
     def is_available(self) -> bool:
@@ -176,7 +203,7 @@ class DeepSeekJSONClient:
                 "max_tokens": self.max_output_tokens,
                 "response_format": {"type": "json_object"},
             },
-            timeout=60,
+            timeout=self.request_timeout,
         )
         response.raise_for_status()
         payload = response.json()
@@ -214,7 +241,7 @@ class DeepSeekJSONClient:
                     "max_tokens": self.max_output_tokens,
                     "response_format": {"type": "json_object"},
                 },
-                timeout=60,
+                timeout=self.request_timeout,
             )
             response.raise_for_status()
         except Exception as exc:

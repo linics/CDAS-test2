@@ -22,6 +22,7 @@ from app.models.user import User, UserRole
 from app.models.subject import Subject, PRESET_SUBJECTS
 from app.models.assignment import Assignment, ProjectGroup
 from app.models.submission import Submission, Evaluation
+from app.models.classroom import Classroom, ClassMember, ClassGroup, ClassGroupMember
 
 __all__ = [
     # 文档模块 (保留)
@@ -33,6 +34,11 @@ __all__ = [
     # 学科模块
     "Subject",
     "PRESET_SUBJECTS",
+    # 班级模块
+    "Classroom",
+    "ClassMember",
+    "ClassGroup",
+    "ClassGroupMember",
     # 枚举
     "AssignmentType",
     "PracticalSubType",

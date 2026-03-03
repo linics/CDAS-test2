@@ -1,4 +1,5 @@
 """清理测试数据，重置 RAG 知识库。"""
+import argparse
 import shutil
 import sys
 from pathlib import Path
@@ -64,4 +65,17 @@ def clean():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Dangerous full cleanup for local disposable environments only")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Acknowledge destructive cleanup of assignment/document data",
+    )
+    args = parser.parse_args()
+
+    if not args.force:
+        print("Refusing to run destructive cleanup without --force")
+        print("Use selective cleanup instead: python scripts/clean_integration_artifacts.py")
+        raise SystemExit(2)
+
     clean()

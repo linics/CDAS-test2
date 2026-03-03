@@ -3,7 +3,7 @@
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -29,8 +29,7 @@ class SubjectResponse(BaseModel):
     grade_range: Optional[str]
     core_competencies: List[CoreCompetency]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SubjectListResponse(BaseModel):

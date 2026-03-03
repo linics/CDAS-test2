@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, List, Sequence
 
 from docx import Document as DocxDocument
-from PyPDF2 import PdfReader
+from pypdf import PdfReader
 
 
 class UnsupportedDocumentError(ValueError):

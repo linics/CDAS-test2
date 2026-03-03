@@ -5,7 +5,7 @@ import json
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -13,6 +13,7 @@ from app.db import get_db
 from app.models import (
     Assignment,
     Evaluation,
+    ProjectGroup,
     Submission,
     User,
     EvaluationType,
@@ -67,8 +68,7 @@ class EvaluationResponse(BaseModel):
     is_anonymous: bool
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class EvaluationListResponse(BaseModel):
@@ -84,6 +84,7 @@ class AIEvaluationSuggestion(BaseModel):
     dimension_scores: Dict[str, int] = Field(default_factory=dict)
     feedback: str = ""
     evidence: List[Dict[str, str]] = Field(default_factory=list)
+    action_items: List[str] = Field(default_factory=list)
 
 
 _LEVEL_LABELS = {
@@ -170,8 +171,9 @@ def _normalize_dimension_scores(
     fallback: int = 2,
 ) -> Dict[str, int]:
     normalized: Dict[str, int] = {}
-    for dim in dimensions:
-        name = dim.get("name")
+    for index, dim in enumerate(dimensions, start=1):
+        raw_name = dim.get("name")
+        name = raw_name if isinstance(raw_name, str) and raw_name else f"Dimension {index}"
         raw_value = scores.get(name, fallback)
         level = _normalize_level_input(raw_value)
         normalized[name] = _clamp_score(_level_to_score(level))
@@ -233,6 +235,50 @@ def _format_phase_context(phase: Dict[str, Any] | None) -> str:
     return "\n".join(lines)
 
 
+def _extract_member_ids(members_json: Any) -> set[int]:
+    member_ids: set[int] = set()
+    if not isinstance(members_json, list):
+        return member_ids
+    for item in members_json:
+        if isinstance(item, dict):
+            raw_user_id = (
+                item.get("user_id")
+                or item.get("student_id")
+                or item.get("id")
+            )
+        else:
+            raw_user_id = item
+        try:
+            if raw_user_id is None:
+                continue
+            user_id = int(str(raw_user_id))
+        except Exception:
+            continue
+        if user_id > 0:
+            member_ids.add(user_id)
+    return member_ids
+
+
+def _student_can_access_submission(db: Session, submission: Submission, student_id: int) -> bool:
+    if submission.student_id == student_id:
+        return True
+    if not submission.group_id:
+        return False
+    group = db.query(ProjectGroup).filter(ProjectGroup.id == submission.group_id).first()
+    if not group:
+        return False
+    return student_id in _extract_member_ids(group.members_json or [])
+
+
+def _group_ids_for_student(db: Session, student_id: int) -> List[int]:
+    groups = db.query(ProjectGroup).all()
+    matched: List[int] = []
+    for group in groups:
+        if student_id in _extract_member_ids(group.members_json or []):
+            matched.append(group.id)
+    return matched
+
+
 # === API 端点 ===
 
 @router.post("/teacher", response_model=EvaluationResponse)
@@ -287,8 +333,8 @@ async def create_self_evaluation(
     submission = db.query(Submission).filter(Submission.id == data.submission_id).first()
     if not submission:
         raise HTTPException(status_code=404, detail="提交不存在")
-    if submission.student_id != current_user.id:
-        raise HTTPException(status_code=403, detail="只能对自己的提交进行自评")
+    if not _student_can_access_submission(db, submission, current_user.id):
+        raise HTTPException(status_code=403, detail="只能对自己或本组可见的提交进行自评")
     
     # 检查是否已有自评
     existing = db.query(Evaluation).filter(
@@ -328,8 +374,8 @@ async def create_peer_evaluation(
     submission = db.query(Submission).filter(Submission.id == data.submission_id).first()
     if not submission:
         raise HTTPException(status_code=404, detail="提交不存在")
-    if submission.student_id == current_user.id:
-        raise HTTPException(status_code=400, detail="不能给自己互评")
+    if _student_can_access_submission(db, submission, current_user.id):
+        raise HTTPException(status_code=400, detail="不能给自己或本组提交互评")
     
     # 检查是否已评过
     existing = db.query(Evaluation).filter(
@@ -371,7 +417,7 @@ async def list_submission_evaluations(
     
     # 学生只能看自己的提交的评价
     from app.models.user import UserRole
-    if current_user.role == UserRole.STUDENT and submission.student_id != current_user.id:
+    if current_user.role == UserRole.STUDENT and not _student_can_access_submission(db, submission, current_user.id):
         raise HTTPException(status_code=403, detail="无权查看此提交的评价")
     
     evaluations = db.query(Evaluation).filter(Evaluation.submission_id == submission_id).all()
@@ -410,8 +456,9 @@ async def ai_assist_evaluation(
     checkpoints = submission.checkpoints_json or {}
 
     system_prompt = (
-        "You are a rigorous teacher. Score each rubric dimension from 1-4, "
-        "cite evidence from the submission, and compute an overall average score. "
+        "You are a rigorous K12 teacher evaluator. "
+        "Use only the provided submission evidence. "
+        "Do not fabricate facts. "
         "Return JSON only."
     )
 
@@ -425,18 +472,26 @@ async def ai_assist_evaluation(
         f"- Description: {assignment.description or ''}\n"
         f"- Objectives JSON: {objectives_text}\n\n"
         f"Current phase tasks:\n{phase_context}\n\n"
-        "Submission content:\n"
+        "Submission evidence:\n"
         f"- text: {submission_text}\n"
         f"- attachments: {attachments}\n"
         f"- checkpoints: {checkpoints}\n\n"
         "Rubric (dimensions with levels):\n"
         f"{rubric_text}\n\n"
+        "Scoring constraints:\n"
+        "1) Score each rubric dimension strictly from 1-4.\n"
+        "2) dimension_scores keys must exactly match rubric dimension names.\n"
+        "3) If evidence is insufficient, lower the score and explain why.\n"
+        "4) evidence must include short quotes from submission text or explicit attachment/checkpoint references.\n"
+        "5) feedback should have three concise parts: strengths, gaps, next focus.\n"
+        "6) action_items should be 2-3 concrete next-step suggestions for the student.\n\n"
         "Return JSON with fields:\n"
         "- suggested_score (1-4, average)\n"
         "- suggested_level (excellent/good/pass/improve)\n"
-        "- dimension_scores (object with keys exactly matching rubric dimension names)\n"
-        "- feedback (concise)\n"
+        "- dimension_scores (object)\n"
+        "- feedback (single string)\n"
         "- evidence (list of {source, quote, reason})\n"
+        "- action_items (list of strings)\n"
     )
 
     settings = get_settings()
@@ -457,6 +512,10 @@ async def ai_assist_evaluation(
             dimension_scores=fallback_scores,
             feedback="Provide more concrete evidence and align each step with rubric requirements.",
             evidence=[],
+            action_items=[
+                "补充关键步骤证据并标注来源。",
+                "对照量表逐项优化表达与结论。",
+            ],
         )
 
     normalized_scores = _normalize_dimension_scores(
@@ -481,9 +540,19 @@ async def list_my_received_evaluations(
     current_user: User = Depends(get_current_user)
 ):
     """学生查看自己收到的所有评价。"""
-    # 找到学生的所有提交
+    # 找到学生的个人提交
     my_submissions = db.query(Submission).filter(Submission.student_id == current_user.id).all()
-    submission_ids = [s.id for s in my_submissions]
-    
+    submission_ids = {s.id for s in my_submissions}
+
+    # 加入学生所在作业小组的提交
+    group_ids = _group_ids_for_student(db, current_user.id)
+    if group_ids:
+        group_submissions = db.query(Submission).filter(Submission.group_id.in_(group_ids)).all()
+        for submission in group_submissions:
+            submission_ids.add(submission.id)
+
+    if not submission_ids:
+        return {"evaluations": [], "total": 0}
+
     evaluations = db.query(Evaluation).filter(Evaluation.submission_id.in_(submission_ids)).all()
     return {"evaluations": [_build_evaluation_response(item) for item in evaluations], "total": len(evaluations)}

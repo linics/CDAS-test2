@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, Header, Form
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -46,8 +46,7 @@ class UserResponse(BaseModel):
     grade: Optional[int]
     class_name: Optional[str]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # === 简化的Token工具函数 ===
@@ -182,6 +181,7 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
 async def login(
     username: str = Form(...),
     password: str = Form(...),
+    role: Optional[UserRole] = Form(None),
     db: Session = Depends(get_db)
 ):
     """用户登录，返回Token。"""
@@ -190,6 +190,14 @@ async def login(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="用户名或密码错误",
+        )
+
+    if role is not None and user.role != role:
+        expected = "教师" if role == UserRole.TEACHER else "学生"
+        actual = "教师" if user.role == UserRole.TEACHER else "学生"
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"账号角色不匹配：你选择了{expected}登录，该账号实际为{actual}账号",
         )
     
     access_token = create_token(user.id, user.role.value)

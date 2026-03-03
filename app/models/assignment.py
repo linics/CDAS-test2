@@ -101,6 +101,10 @@ class Assignment(Base):
     # 是否已发布
     is_published: Mapped[bool] = mapped_column(default=False)
     published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    # 是否已归档
+    is_archived: Mapped[bool] = mapped_column(default=False)
+    archived_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     
     # === 关系定义 ===
     main_subject = relationship("Subject", foreign_keys=[main_subject_id])

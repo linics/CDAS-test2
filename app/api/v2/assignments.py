@@ -4,10 +4,11 @@ import copy
 import json
 import re
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field, model_validator
+from fastapi import APIRouter, Depends, HTTPException, Response, status
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import update
 from sqlalchemy.orm import Session
 
@@ -15,8 +16,12 @@ from app.config import get_settings
 from app.db import SessionLocal, get_db
 from app.models import (
     Assignment, 
+    Document,
+    ParsingStatus,
     ProjectGroup,
+    Submission,
     User,
+    UserRole,
     AssignmentType,
     PracticalSubType,
     InquirySubType,
@@ -28,6 +33,7 @@ from app.models import (
 from app.api.v2.auth import get_current_user, require_teacher
 from app.services.ai import DeepSeekJSONClient
 from app.services.inventory import InventoryService
+from app.utils.text_processing import parse_document
 
 router = APIRouter()
 
@@ -82,6 +88,7 @@ class AssignmentCreate(BaseModel):
     grade: int = Field(ge=1, le=9)
     main_subject_id: int
     related_subject_ids: List[int] = Field(default_factory=list)
+    document_id: Optional[int] = None
     assignment_type: AssignmentType
     practical_subtype: Optional[PracticalSubType] = None
     inquiry_subtype: Optional[InquirySubType] = None
@@ -98,6 +105,7 @@ class AssignmentUpdate(BaseModel):
     title: Optional[str] = None
     topic: Optional[str] = None
     description: Optional[str] = None
+    document_id: Optional[int] = None
     objectives_json: Optional[Dict[str, Any]] = None
     phases_json: Optional[List[Dict[str, Any]]] = None
     rubric_json: Optional[Dict[str, Any]] = None
@@ -124,11 +132,13 @@ class AssignmentResponse(BaseModel):
     phases_json: List[Dict[str, Any]]
     rubric_json: Dict[str, Any]
     is_published: bool
+    is_archived: bool
+    archived_at: Optional[datetime]
     created_by: int
+    document_id: Optional[int]
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AssignmentListResponse(BaseModel):
@@ -142,8 +152,45 @@ class AssignmentPreviewResponse(BaseModel):
     rubric_json: Dict[str, Any]
 
 
+class LessonPlanDraftRequest(BaseModel):
+    document_id: int
+    school_stage: Optional[SchoolStage] = None
+    grade: Optional[int] = Field(default=None, ge=1, le=9)
+    main_subject_id: Optional[int] = None
+    related_subject_ids: List[int] = Field(default_factory=list)
+    assignment_type: Optional[AssignmentType] = None
+    inquiry_depth: Optional[InquiryDepth] = None
+    submission_mode: Optional[SubmissionMode] = None
+    duration_weeks: Optional[int] = Field(default=None, ge=1, le=16)
+
+
+class LessonPlanDraftResponse(BaseModel):
+    title: str
+    topic: str
+    description: str
+    school_stage: SchoolStage
+    grade: int
+    main_subject_id: int
+    related_subject_ids: List[int]
+    document_id: int
+    assignment_type: AssignmentType
+    practical_subtype: Optional[PracticalSubType] = None
+    inquiry_subtype: Optional[InquirySubType] = None
+    inquiry_depth: InquiryDepth
+    submission_mode: SubmissionMode
+    duration_weeks: int
+    objectives_json: Dict[str, Any]
+    phases_json: List[Dict[str, Any]]
+    rubric_json: Dict[str, Any]
+    source_summary: str
+
+
 class GroupCreate(BaseModel):
     name: str
+    members_json: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class GroupMembersUpdate(BaseModel):
     members_json: List[Dict[str, Any]] = Field(default_factory=list)
 
 
@@ -153,8 +200,295 @@ class GroupResponse(BaseModel):
     name: str
     members_json: List[Dict[str, Any]]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+
+
+def _normalize_group_members_input(db: Session, members_json: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    normalized: List[Dict[str, Any]] = []
+    seen_ids: set[int] = set()
+
+    for index, item in enumerate(members_json, start=1):
+        if not isinstance(item, dict):
+            raise HTTPException(status_code=400, detail=f"小组成员参数无效（第{index}项）")
+
+        raw_user_id = item.get("user_id") or item.get("student_id") or item.get("id")
+        username = item.get("username")
+
+        target_user: Optional[User] = None
+        if raw_user_id is not None:
+            try:
+                user_id = int(str(raw_user_id))
+            except Exception:
+                raise HTTPException(status_code=400, detail=f"小组成员 user_id 无效（第{index}项）")
+            target_user = db.query(User).filter(User.id == user_id).first()
+        elif isinstance(username, str) and username.strip():
+            target_user = db.query(User).filter(User.username == username.strip()).first()
+        else:
+            raise HTTPException(status_code=400, detail=f"小组成员缺少 user_id 或 username（第{index}项）")
+
+        if not target_user:
+            raise HTTPException(status_code=400, detail=f"小组成员不存在（第{index}项）")
+        if target_user.role != UserRole.STUDENT:
+            raise HTTPException(status_code=400, detail=f"小组成员必须是学生（第{index}项）")
+        if target_user.id in seen_ids:
+            continue
+
+        seen_ids.add(target_user.id)
+        normalized.append(
+            {
+                "user_id": target_user.id,
+                "name": target_user.name,
+                "username": target_user.username,
+                "role": item.get("role") or "member",
+            }
+        )
+
+    return normalized
+
+
+def _can_view_assignment_groups(assignment: Assignment, current_user: User) -> bool:
+    if current_user.role == UserRole.TEACHER:
+        return assignment.created_by == current_user.id
+
+    if current_user.role == UserRole.STUDENT:
+        if not assignment.is_published:
+            return False
+        if current_user.grade is not None and assignment.grade != current_user.grade:
+            return False
+        return True
+
+    return False
+
+
+def _validate_reference_document(db: Session, document_id: Optional[int]) -> Optional[Document]:
+    if document_id is None:
+        return None
+    document = db.query(Document).filter(Document.id == document_id).first()
+    if not document:
+        raise HTTPException(status_code=400, detail="参考资料不存在")
+    if document.parsing_status != ParsingStatus.READY:
+        raise HTTPException(status_code=400, detail="参考资料尚未入库完成，请稍后重试")
+    return document
+
+
+_CN_GRADE_MAP = {
+    "一": 1,
+    "二": 2,
+    "三": 3,
+    "四": 4,
+    "五": 5,
+    "六": 6,
+    "七": 7,
+    "八": 8,
+    "九": 9,
+}
+
+
+def _extract_document_text(document: Document) -> str:
+    if not document.file_path:
+        return ""
+    source = Path(document.file_path)
+    if not source.exists():
+        return ""
+    content = source.read_bytes()
+    pages = parse_document(content, document.filename or source.name)
+    return "\n".join((page.get("text") or "").strip() for page in pages if isinstance(page, dict))
+
+
+def _clean_filename_stem(filename: str) -> str:
+    stem = Path(filename).stem.strip()
+    stem = re.sub(r"[_-]+", " ", stem)
+    stem = re.sub(r"\s+", " ", stem)
+    return stem
+
+
+def _infer_grade_from_text(text: str) -> Optional[int]:
+    match = re.search(r"([1-9])\s*年级", text)
+    if match:
+        return int(match.group(1))
+    cn_match = re.search(r"([一二三四五六七八九])\s*年级", text)
+    if cn_match:
+        return _CN_GRADE_MAP.get(cn_match.group(1))
+    return None
+
+
+def _infer_school_stage(text: str, grade: Optional[int]) -> SchoolStage:
+    if "小学" in text:
+        return SchoolStage.PRIMARY
+    if "初中" in text or "七年级" in text or "八年级" in text or "九年级" in text:
+        return SchoolStage.MIDDLE
+    if grade is not None and grade <= 6:
+        return SchoolStage.PRIMARY
+    return SchoolStage.MIDDLE
+
+
+def _infer_assignment_type(text: str) -> AssignmentType:
+    lowered = text.lower()
+    if any(keyword in text for keyword in ("项目化", "项目式", "项目任务", "项目学习")):
+        return AssignmentType.PROJECT
+    if any(keyword in text for keyword in ("实验", "调查", "探究", "访谈", "问卷")):
+        return AssignmentType.INQUIRY
+    if any(keyword in text for keyword in ("参观", "体验", "实践活动", "劳动实践")):
+        return AssignmentType.PRACTICAL
+    if "project" in lowered:
+        return AssignmentType.PROJECT
+    if any(keyword in lowered for keyword in ("inquiry", "survey", "experiment")):
+        return AssignmentType.INQUIRY
+    return AssignmentType.PRACTICAL
+
+
+def _infer_subtypes(
+    assignment_type: AssignmentType,
+    text: str,
+) -> tuple[Optional[PracticalSubType], Optional[InquirySubType]]:
+    if assignment_type == AssignmentType.PRACTICAL:
+        if "模拟" in text or "角色扮演" in text:
+            return PracticalSubType.SIMULATION, None
+        if "观察" in text:
+            return PracticalSubType.OBSERVATION, None
+        return PracticalSubType.VISIT, None
+
+    if assignment_type == AssignmentType.INQUIRY:
+        lowered = text.lower()
+        if any(keyword in text for keyword in ("问卷", "访谈", "调查")):
+            return None, InquirySubType.SURVEY
+        if "实验" in text or "experiment" in lowered:
+            return None, InquirySubType.EXPERIMENT
+        return None, InquirySubType.LITERATURE
+
+    return None, None
+
+
+def _infer_subject_ids(
+    db: Session,
+    text: str,
+    stage: SchoolStage,
+    requested_main_subject_id: Optional[int],
+    requested_related_subject_ids: List[int],
+    fallback_subject_id: Optional[int],
+) -> tuple[int, List[int]]:
+    stage_subjects = [
+        subject
+        for subject in db.query(Subject).all()
+        if (stage == SchoolStage.PRIMARY and subject.primary_available)
+        or (stage == SchoolStage.MIDDLE and subject.middle_available)
+    ]
+    if not stage_subjects:
+        stage_subjects = db.query(Subject).all()
+
+    by_id = {subject.id: subject for subject in stage_subjects}
+
+    if requested_main_subject_id and requested_main_subject_id in by_id:
+        main_subject_id = requested_main_subject_id
+    elif fallback_subject_id and fallback_subject_id in by_id:
+        main_subject_id = fallback_subject_id
+    else:
+        matched_ids: List[int] = []
+        lowered = text.lower()
+        for subject in stage_subjects:
+            subject_name = (subject.name or "").strip()
+            if subject_name and subject_name in text:
+                matched_ids.append(subject.id)
+                continue
+            subject_code = (subject.code or "").strip().lower()
+            if subject_code and subject_code in lowered:
+                matched_ids.append(subject.id)
+        if matched_ids:
+            main_subject_id = matched_ids[0]
+        else:
+            main_subject_id = stage_subjects[0].id
+
+    related_subject_ids: List[int] = []
+    seen: set[int] = {main_subject_id}
+    for subject_id in requested_related_subject_ids:
+        if subject_id in by_id and subject_id not in seen:
+            seen.add(subject_id)
+            related_subject_ids.append(subject_id)
+
+    if not related_subject_ids:
+        lowered = text.lower()
+        for subject in stage_subjects:
+            if subject.id in seen:
+                continue
+            subject_name = (subject.name or "").strip()
+            subject_code = (subject.code or "").strip().lower()
+            if (subject_name and subject_name in text) or (subject_code and subject_code in lowered):
+                seen.add(subject.id)
+                related_subject_ids.append(subject.id)
+            if len(related_subject_ids) >= 2:
+                break
+
+    return main_subject_id, related_subject_ids
+
+
+def _build_lesson_plan_seed(
+    request_data: LessonPlanDraftRequest,
+    document: Document,
+    text: str,
+    db: Session,
+) -> AssignmentCreate:
+    doc_meta = document.metadata_json or {}
+    fallback_subject_id = doc_meta.get("subject_id") if isinstance(doc_meta, dict) else None
+
+    inferred_grade = request_data.grade or _infer_grade_from_text(text) or 8
+    inferred_stage = request_data.school_stage or _infer_school_stage(text, inferred_grade)
+    if inferred_stage == SchoolStage.PRIMARY and inferred_grade > 6:
+        inferred_grade = 6
+    if inferred_stage == SchoolStage.MIDDLE and inferred_grade < 7:
+        inferred_grade = 7
+
+    inferred_type = request_data.assignment_type or _infer_assignment_type(text)
+    practical_subtype, inquiry_subtype = _infer_subtypes(inferred_type, text)
+
+    main_subject_id, related_subject_ids = _infer_subject_ids(
+        db,
+        text,
+        inferred_stage,
+        request_data.main_subject_id,
+        request_data.related_subject_ids,
+        int(fallback_subject_id) if isinstance(fallback_subject_id, int) else None,
+    )
+
+    title_match = re.search(r"(?:教案名称|课题|主题)[:：]\s*([^\n\r]{2,80})", text)
+    heading_title = ""
+    for raw_line in text.splitlines()[:8]:
+        line = re.sub(r"^[\s\-\d.()（）一二三四五六七八九十]+", "", raw_line.strip())
+        if 4 <= len(line) <= 80:
+            heading_title = line
+            break
+    title = (
+        title_match.group(1).strip()
+        if title_match
+        else (heading_title or _clean_filename_stem(document.filename))
+    )
+    topic = re.sub(r"^(教案|教学设计|课程设计)\s*", "", title).strip() or title
+    description = _summarize_text(text, max_length=900)
+
+    duration_weeks = request_data.duration_weeks or 2
+    week_match = re.search(r"(\d{1,2})\s*周", text)
+    if week_match:
+        duration_weeks = max(1, min(16, int(week_match.group(1))))
+
+    return AssignmentCreate(
+        title=title,
+        topic=topic,
+        description=description,
+        school_stage=inferred_stage,
+        grade=inferred_grade,
+        main_subject_id=main_subject_id,
+        related_subject_ids=related_subject_ids,
+        document_id=document.id,
+        assignment_type=inferred_type,
+        practical_subtype=practical_subtype,
+        inquiry_subtype=inquiry_subtype,
+        inquiry_depth=request_data.inquiry_depth or InquiryDepth.INTERMEDIATE,
+        submission_mode=request_data.submission_mode or SubmissionMode.PHASED,
+        duration_weeks=duration_weeks,
+        deadline=None,
+        objectives_json=None,
+        phases_json=None,
+        rubric_json=None,
+    )
 
 
 # === API 端点 ===
@@ -162,9 +496,11 @@ class GroupResponse(BaseModel):
 @router.post("/preview", response_model=AssignmentPreviewResponse)
 async def preview_assignment(
     data: AssignmentCreate,
+    db: Session = Depends(get_db),
     current_user: User = Depends(require_teacher),
 ):
     """生成作业的 AI 预览内容，不入库。"""
+    _validate_reference_document(db, data.document_id)
     objectives = data.objectives_json or {}
     phases = data.phases_json or []
     rubric = data.rubric_json or {}
@@ -184,6 +520,47 @@ async def preview_assignment(
     }
 
 
+@router.post("/from-lesson-plan", response_model=LessonPlanDraftResponse)
+async def generate_assignment_from_lesson_plan(
+    data: LessonPlanDraftRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_teacher),
+):
+    """根据已上传教案生成可编辑作业草稿，不直接入库。"""
+    document = _validate_reference_document(db, data.document_id)
+    if not document:
+        raise HTTPException(status_code=400, detail="教案不存在或尚未完成入库")
+
+    lesson_plan_text = _extract_document_text(document)
+    if not lesson_plan_text.strip():
+        raise HTTPException(status_code=400, detail="教案内容为空，无法生成草稿")
+
+    seed = _build_lesson_plan_seed(data, document, lesson_plan_text, db)
+    objectives, phases, rubric = _generate_ai_content_from_lesson_plan(seed, lesson_plan_text)
+    objectives, phases, rubric = _ensure_ai_defaults(seed, objectives, phases, rubric)
+
+    return {
+        "title": seed.title,
+        "topic": seed.topic,
+        "description": seed.description or "",
+        "school_stage": seed.school_stage,
+        "grade": seed.grade,
+        "main_subject_id": seed.main_subject_id,
+        "related_subject_ids": seed.related_subject_ids,
+        "document_id": document.id,
+        "assignment_type": seed.assignment_type,
+        "practical_subtype": seed.practical_subtype,
+        "inquiry_subtype": seed.inquiry_subtype,
+        "inquiry_depth": seed.inquiry_depth,
+        "submission_mode": seed.submission_mode,
+        "duration_weeks": seed.duration_weeks,
+        "objectives_json": objectives,
+        "phases_json": phases,
+        "rubric_json": rubric,
+        "source_summary": _summarize_text(lesson_plan_text, max_length=280),
+    }
+
+
 @router.get("/ai-status")
 async def ai_status(
     current_user: User = Depends(require_teacher),
@@ -199,6 +576,7 @@ async def create_assignment(
     current_user: User = Depends(require_teacher)
 ):
     """创建新作业（教师权限）。"""
+    _validate_reference_document(db, data.document_id)
     objectives = data.objectives_json or {}
     phases = data.phases_json or []
     rubric = data.rubric_json or {}
@@ -243,43 +621,32 @@ async def list_assignments(
     page: int = 1,
     page_size: int = 20,
     published_only: bool = False,
+    include_archived: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """获取作业列表。教师看自己创建的，学生看已发布的。"""
-    try:
-        print(f"DEBUG: list_assignments ENTERED. User: {current_user.id}, Role: {current_user.role}")
-        from app.models.user import UserRole
-        
-        query = db.query(Assignment)
-        print(f"DEBUG: Query created")
-        
-        if current_user.role == UserRole.TEACHER:
-            print("DEBUG: User is TEACHER")
-            query = query.filter(Assignment.created_by == current_user.id)
-        else:
-            print("DEBUG: User is STUDENT")
-            query = query.filter(Assignment.is_published == True)
-            if current_user.grade is not None:
-                query = query.filter(Assignment.grade == current_user.grade)
-        
-        if published_only:
-            query = query.filter(Assignment.is_published == True)
-        
-        print("DEBUG: Executing count query...")
-        total = query.count()
-        print(f"DEBUG: Total count: {total}")
-        
-        print("DEBUG: Executing fetch query...")
-        assignments = query.offset((page - 1) * page_size).limit(page_size).all()
-        print(f"DEBUG: Fetched {len(assignments)} assignments")
-        
-        return {"assignments": assignments, "total": total}
-    except Exception as e:
-        import traceback
-        print(f"CRITICAL ERROR in list_assignments: {e}")
-        print(traceback.format_exc())
-        raise
+    from app.models.user import UserRole
+
+    query = db.query(Assignment)
+
+    if current_user.role == UserRole.TEACHER:
+        query = query.filter(Assignment.created_by == current_user.id)
+        if not include_archived:
+            query = query.filter(Assignment.is_archived == False)
+    else:
+        query = query.filter(Assignment.is_published == True)
+        query = query.filter(Assignment.is_archived == False)
+        if current_user.grade is not None:
+            query = query.filter(Assignment.grade == current_user.grade)
+
+    if published_only:
+        query = query.filter(Assignment.is_published == True)
+
+    total = query.count()
+    assignments = query.offset((page - 1) * page_size).limit(page_size).all()
+
+    return {"assignments": assignments, "total": total}
 
 
 @router.get("/{assignment_id}", response_model=AssignmentResponse)
@@ -310,6 +677,15 @@ async def update_assignment(
         raise HTTPException(status_code=403, detail="只能编辑自己创建的作业")
     
     update_data = data.model_dump(exclude_unset=True)
+    if "document_id" in update_data and update_data.get("document_id") is not None:
+        raw_document_id = update_data.get("document_id")
+        if isinstance(raw_document_id, int):
+            _validate_reference_document(db, raw_document_id)
+        else:
+            try:
+                _validate_reference_document(db, int(str(raw_document_id)))
+            except Exception:
+                raise HTTPException(status_code=400, detail="参考资料参数无效")
     for key, value in update_data.items():
         setattr(assignment, key, value)
     
@@ -349,7 +725,49 @@ async def publish_assignment(
         raise HTTPException(status_code=403, detail="只能发布自己创建的作业")
     
     assignment.is_published = True
+    assignment.is_archived = False
+    assignment.archived_at = None
     assignment.published_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(assignment)
+    return assignment
+
+
+@router.post("/{assignment_id}/archive", response_model=AssignmentResponse)
+async def archive_assignment(
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_teacher),
+):
+    """归档作业。"""
+    assignment = db.query(Assignment).filter(Assignment.id == assignment_id).first()
+    if not assignment:
+        raise HTTPException(status_code=404, detail="作业不存在")
+    if assignment.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="只能归档自己创建的作业")
+
+    assignment.is_archived = True
+    assignment.archived_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(assignment)
+    return assignment
+
+
+@router.post("/{assignment_id}/unarchive", response_model=AssignmentResponse)
+async def unarchive_assignment(
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_teacher),
+):
+    """取消归档作业。"""
+    assignment = db.query(Assignment).filter(Assignment.id == assignment_id).first()
+    if not assignment:
+        raise HTTPException(status_code=404, detail="作业不存在")
+    if assignment.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="只能操作自己创建的作业")
+
+    assignment.is_archived = False
+    assignment.archived_at = None
     db.commit()
     db.refresh(assignment)
     return assignment
@@ -374,6 +792,7 @@ async def generate_steps(
         grade=assignment.grade,
         main_subject_id=assignment.main_subject_id,
         related_subject_ids=assignment.related_subject_ids or [],
+        document_id=assignment.document_id,
         assignment_type=assignment.assignment_type,
         practical_subtype=assignment.practical_subtype,
         inquiry_subtype=assignment.inquiry_subtype,
@@ -415,11 +834,31 @@ async def create_group(
     assignment = db.query(Assignment).filter(Assignment.id == assignment_id).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="作业不存在")
+
+    if assignment.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="只能为自己创建的作业管理小组")
+
+    group_name = data.name.strip()
+    if not group_name:
+        raise HTTPException(status_code=400, detail="小组名称不能为空")
+
+    duplicate = (
+        db.query(ProjectGroup)
+        .filter(
+            ProjectGroup.assignment_id == assignment_id,
+            ProjectGroup.name == group_name,
+        )
+        .first()
+    )
+    if duplicate:
+        raise HTTPException(status_code=400, detail="该作业内小组名称已存在")
+
+    normalized_members = _normalize_group_members_input(db, data.members_json or [])
     
     group = ProjectGroup(
         assignment_id=assignment_id,
-        name=data.name,
-        members_json=data.members_json,
+        name=group_name,
+        members_json=normalized_members,
     )
     db.add(group)
     db.commit()
@@ -434,8 +873,102 @@ async def list_groups(
     current_user: User = Depends(get_current_user)
 ):
     """获取作业的所有小组。"""
-    groups = db.query(ProjectGroup).filter(ProjectGroup.assignment_id == assignment_id).all()
+    assignment = db.query(Assignment).filter(Assignment.id == assignment_id).first()
+    if not assignment:
+        raise HTTPException(status_code=404, detail="作业不存在")
+
+    if not _can_view_assignment_groups(assignment, current_user):
+        raise HTTPException(status_code=403, detail="无权查看该作业小组")
+
+    groups = (
+        db.query(ProjectGroup)
+        .filter(ProjectGroup.assignment_id == assignment_id)
+        .order_by(ProjectGroup.created_at.asc())
+        .all()
+    )
     return groups
+
+
+@router.put("/{assignment_id}/groups/{group_id}/members", response_model=GroupResponse)
+async def update_group_members(
+    assignment_id: int,
+    group_id: int,
+    data: GroupMembersUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_teacher),
+):
+    """更新作业小组成员。"""
+    assignment = db.query(Assignment).filter(Assignment.id == assignment_id).first()
+    if not assignment:
+        raise HTTPException(status_code=404, detail="作业不存在")
+    if assignment.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="只能管理自己创建的作业小组")
+
+    group = (
+        db.query(ProjectGroup)
+        .filter(
+            ProjectGroup.id == group_id,
+            ProjectGroup.assignment_id == assignment_id,
+        )
+        .first()
+    )
+    if not group:
+        raise HTTPException(status_code=404, detail="小组不存在")
+
+    linked_submission_count = (
+        db.query(Submission)
+        .filter(Submission.group_id == group.id)
+        .count()
+    )
+    if linked_submission_count > 0:
+        raise HTTPException(status_code=400, detail="该小组已有提交记录，不能再调整成员")
+
+    normalized_members = _normalize_group_members_input(db, data.members_json or [])
+    if not normalized_members:
+        raise HTTPException(status_code=400, detail="小组至少需要 1 名成员")
+
+    group.members_json = normalized_members
+    db.commit()
+    db.refresh(group)
+    return group
+
+
+@router.delete("/{assignment_id}/groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_group(
+    assignment_id: int,
+    group_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_teacher),
+):
+    """删除作业小组。"""
+    assignment = db.query(Assignment).filter(Assignment.id == assignment_id).first()
+    if not assignment:
+        raise HTTPException(status_code=404, detail="作业不存在")
+    if assignment.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="只能管理自己创建的作业小组")
+
+    group = (
+        db.query(ProjectGroup)
+        .filter(
+            ProjectGroup.id == group_id,
+            ProjectGroup.assignment_id == assignment_id,
+        )
+        .first()
+    )
+    if not group:
+        raise HTTPException(status_code=404, detail="小组不存在")
+
+    linked_submission_count = (
+        db.query(Submission)
+        .filter(Submission.group_id == group.id)
+        .count()
+    )
+    if linked_submission_count > 0:
+        raise HTTPException(status_code=400, detail="该小组已有提交记录，不能删除")
+
+    db.delete(group)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # === 辅助函数 ===
@@ -623,6 +1156,16 @@ def _resolve_subject_names(subject_ids: List[int]) -> List[str]:
     return [id_to_name.get(subject_id, f"id={subject_id}") for subject_id in subject_ids]
 
 
+def _resolve_document_name(document_id: Optional[int]) -> str:
+    if not document_id:
+        return ""
+    with SessionLocal() as db:
+        document = db.query(Document).filter(Document.id == document_id).first()
+    if not document:
+        return f"id={document_id}"
+    return document.filename
+
+
 def _build_rag_context(data: AssignmentCreate, subject_ids: List[int]) -> str:
     query = " ".join(
         [part for part in [data.title, data.topic, data.description or ""] if part]
@@ -630,7 +1173,13 @@ def _build_rag_context(data: AssignmentCreate, subject_ids: List[int]) -> str:
     if not query:
         return ""
     inventory = InventoryService(get_settings())
-    chunks = inventory.query_chunks(query, subject_ids=subject_ids, limit=10)
+    document_ids = [data.document_id] if data.document_id else None
+    chunks = inventory.query_chunks(
+        query,
+        subject_ids=None if document_ids else subject_ids,
+        document_ids=document_ids,
+        limit=10,
+    )
     if not chunks:
         return ""
     lines: List[str] = []
@@ -761,85 +1310,155 @@ def _generate_ai_content(data: AssignmentCreate) -> tuple[Dict[str, Any], List[D
     subject_labels = _resolve_subject_names(subject_ids)
     main_subject_label = subject_labels[0] if subject_labels else f"id={data.main_subject_id}"
     related_subjects_label = ", ".join(subject_labels[1:]) if len(subject_labels) > 1 else "none"
+    reference_document_label = _resolve_document_name(data.document_id)
     rag_context = _build_rag_context(data, subject_ids)
 
     type_guidance = {
-        AssignmentType.PRACTICAL: "å¼ºè°ƒçœŸå®žæƒ…å¢ƒä½“éªŒã€è¿‡ç¨‹è®°å½•ã€æˆæžœå±•ç¤ºä¸Žåæ€æ€»ç»“ã€‚",
-        AssignmentType.INQUIRY: "å›´ç»•é—®é¢˜-è¯æ®-ç»“è®ºï¼Œå¼ºè°ƒæ£€ç´¢/è°ƒæŸ¥/å®žéªŒä¸Žè®ºè¯è¿‡ç¨‹ã€‚",
-        AssignmentType.PROJECT: "çªå‡ºçœŸå®žé—®é¢˜ã€å›¢é˜Ÿåä½œä¸Žè¿­ä»£ä¼˜åŒ–ï¼Œé‡ç‚¹å±•ç¤ºæˆæžœä¸Žå½’çº³åæ€?ã€‚",
+        AssignmentType.PRACTICAL: "Emphasize authentic practice, process evidence, output artifacts, and reflection.",
+        AssignmentType.INQUIRY: "Emphasize question-evidence-conclusion reasoning and reproducible inquiry process.",
+        AssignmentType.PROJECT: "Emphasize real-world problem solving, collaboration, and iterative improvement.",
     }.get(data.assignment_type, "")
 
     subtype_guidance = ""
     if data.assignment_type == AssignmentType.PRACTICAL and data.practical_subtype:
         subtype_guidance = {
-            PracticalSubType.VISIT: "å‚è§‚è€ƒå¯Ÿï¼šå¼ºè°ƒè§‚å¯Ÿè¦ç‚¹ã€çºªå®žè®°å½•ä¸Žè§„èŒƒè¡¨è¾¾ã€‚",
-            PracticalSubType.SIMULATION: "æ¨¡æ‹Ÿè¡¨æ¼”ï¼šå¼ºè°ƒè§’è‰²åˆ†å·¥ã€æƒ…å¢ƒå†çŽ°ä¸Žå¿ƒå¾—è®°å½•ã€‚",
-            PracticalSubType.OBSERVATION: "è§‚å¯Ÿä½“éªŒï¼šå¼ºè°ƒè¿žç»­è§‚å¯Ÿã€è®°å½•è¡¨æ ¼ä¸Žå½’çº³åˆ†æžã€‚",
+            PracticalSubType.VISIT: "Visit fieldwork: focus on observation targets and factual recording.",
+            PracticalSubType.SIMULATION: "Simulation performance: focus on roles, scenario replay, and reflection notes.",
+            PracticalSubType.OBSERVATION: "Observation experience: focus on continuous records and pattern analysis.",
         }.get(data.practical_subtype, "")
     elif data.assignment_type == AssignmentType.INQUIRY and data.inquiry_subtype:
         subtype_guidance = {
-            InquirySubType.LITERATURE: "æ–‡çŒ®æŽ¢ç©¶ï¼šå¼ºè°ƒæ–‡çŒ®æ£€ç´¢ã€é˜…è¯»æ‰¹æ³¨ã€è§‚ç‚¹æ•´åˆä¸Žå¼•ç”¨è§„èŒƒã€‚",
-            InquirySubType.SURVEY: "è°ƒæŸ¥æŽ¢ç©¶ï¼šå¼ºè°ƒé—®å·/è®¿è°ˆè®¾è®¡ã€æ ·æœ¬è¯´æ˜Žã€ç»Ÿè®¡åˆ†æžã€‚",
-            InquirySubType.EXPERIMENT: "å®žéªŒæŽ¢ç©¶ï¼šå¼ºè°ƒå˜é‡æŽ§åˆ¶ã€æ­¥éª¤è§„èŒƒã€é‡å¤éªŒè¯ä¸Žè¯¯å·®åˆ†æžã€‚",
+            InquirySubType.LITERATURE: "Literature inquiry: focus on search strategy, annotation, synthesis, and citations.",
+            InquirySubType.SURVEY: "Survey inquiry: focus on instrument design, sampling notes, and statistics.",
+            InquirySubType.EXPERIMENT: "Experiment inquiry: focus on variable control, repeated trials, and error analysis.",
         }.get(data.inquiry_subtype, "")
 
     depth_guidance = {
-        InquiryDepth.BASIC: "基础：高度脚手架，提供明确指令、示例与模板，检查点具体可核对。",
-        InquiryDepth.INTERMEDIATE: "中等：给出步骤框架与关键提示，检查点指向性强但留空间。",
-        InquiryDepth.DEEP: "深度：开放引导，仅给阶段目标和核心问题，检查点强调质量。",
-    }.get(data.inquiry_depth, "中等：给出步骤框架与关键提示。")
+        InquiryDepth.BASIC: "Basic depth: provide explicit scaffolding and concrete checkpoints.",
+        InquiryDepth.INTERMEDIATE: "Intermediate depth: provide framework plus key prompts with moderate openness.",
+        InquiryDepth.DEEP: "Deep depth: provide goal-level guidance and emphasize quality criteria.",
+    }.get(data.inquiry_depth, "Intermediate depth: provide framework plus key prompts.")
 
     system_prompt = (
-        "????????????????K12????????"
-        "???????????????JSON????objectives, phases, rubric?"
-        "??????????objectives(knowledge/process/emotion)?"
-        "phases(name/order/steps)?steps(name/description/checkpoints)?"
-        "checkpoints(content/evidence_type)?"
-        "???????????/??/??/?????????"
-        "????????description?????1-2?checkpoints?"
-        "checkpoints????????/???????description?"
-        "????title/content/step/checkpoint??????"
+        "You are an expert K12 assignment designer. "
+        "Return exactly one JSON object with keys: objectives, phases, rubric. "
+        "objectives must include knowledge/process/emotion. "
+        "phases must include name/order/steps. "
+        "Use phase titles to express scenario progression and continuity. "
+        "Each step must include name/description/checkpoints. "
+        "step.description must act as learning scaffold, not task name repetition. "
+        "Each checkpoint must include content/evidence_type where evidence_type is one of "
+        "text/document/image/video/confirm/link. "
+        "Keep checkpoints actionable and not duplicate the step description. "
+        "Avoid formulaic repetition across phases and steps."
     )
 
     template_json = json.dumps(template_phases, ensure_ascii=False, indent=2)
 
     user_prompt = (
-        "??????????????????????????\n"
-        f"- ??: {data.title}\n"
-        f"- ??: {data.topic}\n"
-        f"- ??: {data.description or '?'}\n"
-        f"- ??: {stage_map.get(data.school_stage, data.school_stage)}\n"
-        f"- ??: {data.grade}\n"
-        f"- ????: {type_map.get(data.assignment_type, data.assignment_type)}\n"
-        f"- ???: {subtype_label}\n"
+        "Generate a structured assignment draft from the following teaching context.\n"
+        f"- Title: {data.title}\n"
+        f"- Topic: {data.topic}\n"
+        f"- Description: {data.description or 'none'}\n"
+        f"- School stage: {stage_map.get(data.school_stage, data.school_stage)}\n"
+        f"- Grade: {data.grade}\n"
+        f"- Assignment type: {type_map.get(data.assignment_type, data.assignment_type)}\n"
+        f"- Subtype: {subtype_label}\n"
         f"- Main subject: {main_subject_label}\n"
         f"- Related subjects: {related_subjects_label}\n"
-        f"- ?????: {type_guidance or '?'}\n"
-        f"- ??????: {subtype_guidance or '?'}\n"
-        f"- ????: {depth_map.get(data.inquiry_depth, data.inquiry_depth)}\n"
-        f"- ????: {submission_map.get(data.submission_mode, data.submission_mode)}\n"
-        f"- ??: {data.duration_weeks} ?\n\n"
-        f"????: {depth_guidance}\n\n"
-        "??JSON???\n"
-        "1) objectives ?? knowledge/process/emotion ?????????\n"
-        "2) phases ?????????name/order/steps????????????\n"
-        "3) ?? step ?????name???? description ? checkpoints?\n"
-        "4) checkpoints ????1-2???????content ? evidence_type?\n"
-        "5) checkpoints ??? description ???????????????\n"
-        "6) evidence_type ???text/document/image/video/confirm/link?\n"
-        "7) rubric ??5-6?????levels(excellent/good/pass/improve)?????\n\n"
-        "???????????\n"
-        "- description: \"?????????????\"\n"
-        "- checkpoints: [\"?????????????\"]\n"
-        "?????\n"
-        "- description: \"?????????????\"\n"
-        "- checkpoints: [\"?????200????\",\"??????\"]\n\n"
-        "???????????description/checkpoints???? name/order/steps??\n"
+        f"- Reference document: {reference_document_label or 'none'}\n"
+        f"- Type guidance: {type_guidance or 'none'}\n"
+        f"- Subtype guidance: {subtype_guidance or 'none'}\n"
+        f"- Inquiry depth: {depth_map.get(data.inquiry_depth, data.inquiry_depth)}\n"
+        f"- Submission mode: {submission_map.get(data.submission_mode, data.submission_mode)}\n"
+        f"- Duration weeks: {data.duration_weeks}\n"
+        f"- Depth guidance: {depth_guidance}\n\n"
+        "Output requirements:\n"
+        "1) objectives should be specific and concise.\n"
+        "2) phases should remain coherent with increasing progression, and each phase title should show story continuity.\n"
+        "3) each step should include 1-2 checkpoints only.\n"
+        "4) rubric should have 5-6 dimensions with level descriptions (excellent/good/pass/improve).\n"
+        "5) write step descriptions as scaffolding prompts with context, hints, and expected thinking path.\n"
+        "6) avoid repeated sentence templates such as identical openings for all steps.\n"
+        "5) preserve phase structure compatibility with this template (you may enrich descriptions/checkpoints):\n"
         f"{template_json}\n"
     )
 
     if rag_context:
         user_prompt += f"\nSubject-specific context (reference only):\n{rag_context}\n"
+
+    try:
+        raw_payload = client.predict_json(system_prompt, user_prompt)
+        normalized = _normalize_ai_assignment_output(raw_payload)
+        objectives = normalized.get("objectives") or default_objectives
+        ai_phases = normalized.get("phases") or []
+        phases = _merge_phases(copy.deepcopy(template_phases), ai_phases)
+        rubric = normalized.get("rubric") or {}
+        if not rubric.get("dimensions"):
+            rubric = default_rubric
+        return objectives, phases, rubric
+    except Exception as exc:
+        _log_ai_generation_error(exc)
+        return default_objectives, template_phases, default_rubric
+
+
+def _generate_ai_content_from_lesson_plan(
+    data: AssignmentCreate,
+    lesson_plan_text: str,
+) -> tuple[Dict[str, Any], List[Dict[str, Any]], Dict[str, Any]]:
+    settings = get_settings()
+    client = DeepSeekJSONClient(settings, temperature=0.1, max_output_tokens=1600, request_timeout=25)
+    _log_ai_debug("generate_from_lesson_plan_called")
+
+    template_phases = _get_template_phases(data)
+    default_objectives = _default_objectives(data)
+    default_rubric = _default_rubric(data.assignment_type)
+    if not client.is_available:
+        return default_objectives, template_phases, default_rubric
+
+    subject_ids = [data.main_subject_id] + [
+        subject_id for subject_id in (data.related_subject_ids or []) if subject_id != data.main_subject_id
+    ]
+    subject_labels = _resolve_subject_names(subject_ids)
+    main_subject_label = subject_labels[0] if subject_labels else f"id={data.main_subject_id}"
+    related_subjects_label = ", ".join(subject_labels[1:]) if len(subject_labels) > 1 else "none"
+
+    lesson_plan_excerpt = _summarize_text(lesson_plan_text, max_length=2800)
+    template_json = json.dumps(template_phases, ensure_ascii=False, indent=2)
+
+    system_prompt = (
+        "You are an expert curriculum-to-assignment converter for K12 teachers. "
+        "Read a lesson plan and produce a practical assignment draft. "
+        "Return exactly one JSON object with keys: objectives, phases, rubric. "
+        "Preserve lesson-plan intent and scenario continuity. "
+        "Use realistic classroom language, concise wording, and actionable checkpoints."
+    )
+
+    user_prompt = (
+        "Task: convert this lesson plan into a student assignment draft.\n"
+        "Follow constraints:\n"
+        "- objectives includes knowledge/process/emotion\n"
+        "- phases includes name/order/steps\n"
+        "- each phase should include a scenario title that naturally continues from previous phase\n"
+        "- each step includes name/description/checkpoints\n"
+        "- step.description should be a learning scaffold sentence with context and hint\n"
+        "- each checkpoint includes content/evidence_type (text/document/image/video/confirm/link)\n"
+        "- rubric includes 5-6 dimensions with levels excellent/good/pass/improve\n"
+        "- keep progression from task understanding to evidence production and reflection\n\n"
+        f"Seed profile:\n- title={data.title}\n- topic={data.topic}\n"
+        f"- school_stage={data.school_stage}\n- grade={data.grade}\n"
+        f"- assignment_type={data.assignment_type}\n- inquiry_depth={data.inquiry_depth}\n"
+        f"- submission_mode={data.submission_mode}\n- duration_weeks={data.duration_weeks}\n"
+        f"- main_subject={main_subject_label}\n- related_subjects={related_subjects_label}\n\n"
+        "Lesson plan excerpt:\n"
+        f"{lesson_plan_excerpt}\n\n"
+        "Structure template (keep compatible order/shape, enrich content):\n"
+        f"{template_json}\n\n"
+        "Quality constraints:\n"
+        "- keep each step concise and practical for classroom execution\n"
+        "- each step checkpoints count should be 1-2 only\n"
+        "- avoid generic placeholders and repeated slogans\n"
+    )
 
     try:
         raw_payload = client.predict_json(system_prompt, user_prompt)

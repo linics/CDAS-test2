@@ -16,8 +16,6 @@ def run_migrations(engine: Engine) -> None:
     if engine.url.drivername != "sqlite":
         return
 
-    _backup_sqlite_db(engine)
-
     with engine.begin() as conn:
         conn.execute(
             text(
@@ -32,10 +30,19 @@ def run_migrations(engine: Engine) -> None:
             for row in conn.execute(text("SELECT version FROM schema_migrations")).fetchall()
         }
 
-    for path in _iter_migration_files():
+    pending = [
+        path
+        for path in _iter_migration_files()
+        if path.stem.split("_", 1)[0] not in applied
+    ]
+
+    if not pending:
+        return
+
+    _backup_sqlite_db(engine)
+
+    for path in pending:
         version = path.stem.split("_", 1)[0]
-        if version in applied:
-            continue
         sql = path.read_text(encoding="utf-8")
         statements = _split_sql(sql)
         with engine.begin() as conn:
