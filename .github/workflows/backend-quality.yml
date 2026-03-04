@@ -25,4 +25,6 @@ jobs:
           pip install -r requirements.txt
 
       - name: Backend quality gate
+        env:
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
         run: python scripts/check_backend_quality.py

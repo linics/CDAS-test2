@@ -17,13 +17,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate integration e2e secret
-        run: |
-          if [ -z "${VITE_API_BASE_URL}" ]; then
-            echo "CDAS_API_BASE_URL secret is empty; skip integration-e2e by setting CDAS_ENABLE_INTEGRATION_E2E=false or provide secret."
-            exit 1
-          fi
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -50,6 +43,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Validate integration e2e secret
+        run: |
+          if [ -z "${VITE_API_BASE_URL}" ]; then
+            echo "CDAS_API_BASE_URL secret is empty; disable integration-e2e or provide secret."
+            exit 1
+          fi
 
       - name: Setup Node
         uses: actions/setup-node@v4
