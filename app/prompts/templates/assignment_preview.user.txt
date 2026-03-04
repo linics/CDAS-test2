@@ -18,11 +18,18 @@ Generate a structured assignment draft from the following teaching context.
 
 Output requirements:
 1) objectives should be specific and concise.
-2) phases should remain coherent with increasing progression, and each phase title should show story continuity.
-3) each step should include 1-2 checkpoints only.
-4) rubric should have 5-6 dimensions with level descriptions (excellent/good/pass/improve).
-5) write step descriptions as scaffolding prompts with context, hints, and expected thinking path.
-6) avoid repeated sentence templates such as identical openings for all steps.
-7) preserve phase structure compatibility with this template (you may enrich descriptions/checkpoints):
+2) objectives.process must start with a background setting sentence prefixed by "背景设定：".
+3) the background setting must be a single short paragraph (about 80-140 Chinese characters), fit school stage + grade, and be linked to topic.
+4) phases should remain coherent with increasing progression, and each phase title should show story continuity.
+5) total phase count must be 3-4 only (merge template phases if needed).
+6) each phase should contain 1 core step (max 2 steps).
+7) each step should include 1-2 checkpoints only.
+8) each step must include content as a short narrative bridge tied to the background setting.
+9) write step descriptions as engaging scaffolding prompts with context, hints, and expected thinking path.
+10) across the whole assignment, highlight 4-6 truly core steps; for any extra steps from the template, mark them optional by starting description with "（可选）".
+11) each description should start with a 1-sentence scene hook connected to the background setting, then give concrete guidance.
+12) avoid repeated sentence templates such as identical openings for all steps.
+13) rubric should have 5-6 dimensions with level descriptions (excellent/good/pass/improve).
+14) preserve phase structure compatibility with this template (you may enrich descriptions/checkpoints):
 {template_json}
 {rag_section}

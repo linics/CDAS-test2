@@ -17,7 +17,7 @@ class PromptSpec:
 
 ASSIGNMENT_PREVIEW_PROMPT = PromptSpec(
     prompt_id="assignment.preview",
-    version="v2.0.0",
+    version="v2.1.0",
     owner="teaching-design",
     target_api="POST /api/v2/assignments/preview",
     fallback_policy="default_objectives+template_phases+default_rubric",
@@ -25,7 +25,7 @@ ASSIGNMENT_PREVIEW_PROMPT = PromptSpec(
 
 ASSIGNMENT_LESSON_PLAN_PROMPT = PromptSpec(
     prompt_id="assignment.from_lesson_plan",
-    version="v2.0.0",
+    version="v2.1.0",
     owner="teaching-design",
     target_api="POST /api/v2/assignments/from-lesson-plan",
     fallback_policy="default_objectives+template_phases+default_rubric",
