@@ -1,0 +1,33 @@
+Task: convert this lesson plan into a student assignment draft.
+Follow constraints:
+- objectives includes knowledge/process/emotion
+- phases includes name/order/steps
+- each phase should include a scenario title that naturally continues from previous phase
+- each step includes name/description/checkpoints
+- step.description should be a learning scaffold sentence with context and hint
+- each checkpoint includes content/evidence_type (text/document/image/video/confirm/link)
+- rubric includes 5-6 dimensions with levels excellent/good/pass/improve
+- keep progression from task understanding to evidence production and reflection
+
+Seed profile:
+- title={title}
+- topic={topic}
+- school_stage={school_stage}
+- grade={grade}
+- assignment_type={assignment_type}
+- inquiry_depth={inquiry_depth}
+- submission_mode={submission_mode}
+- duration_weeks={duration_weeks}
+- main_subject={main_subject}
+- related_subjects={related_subjects}
+
+Lesson plan excerpt:
+{lesson_plan_excerpt}
+
+Structure template (keep compatible order/shape, enrich content):
+{template_json}
+
+Quality constraints:
+- keep each step concise and practical for classroom execution
+- each step checkpoints count should be 1-2 only
+- avoid generic placeholders and repeated slogans

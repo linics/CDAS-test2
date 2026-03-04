@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+from app.prompts.template_loader import load_template
+
 
 @dataclass(frozen=True)
 class EvaluationPromptContext:
@@ -17,40 +19,17 @@ class EvaluationPromptContext:
 
 
 def build_evaluation_prompt(ctx: EvaluationPromptContext) -> tuple[str, str]:
-    system_prompt = (
-        "You are a rigorous K12 teacher evaluator. "
-        "Use only the provided submission evidence. "
-        "Do not fabricate facts. "
-        "Return JSON only."
-    )
-
-    user_prompt = (
-        "Assignment context:\n"
-        f"- Title: {ctx.assignment_title}\n"
-        f"- Topic: {ctx.assignment_topic}\n"
-        f"- Description: {ctx.assignment_description}\n"
-        f"- Objectives JSON: {ctx.objectives_json}\n\n"
-        f"Current phase tasks:\n{ctx.phase_context}\n\n"
-        "Submission evidence:\n"
-        f"- text: {ctx.submission_text}\n"
-        f"- attachments: {ctx.attachments}\n"
-        f"- checkpoints: {ctx.checkpoints}\n\n"
-        "Rubric (dimensions with levels):\n"
-        f"{ctx.rubric_text}\n\n"
-        "Scoring constraints:\n"
-        "1) Score each rubric dimension strictly from 1-4.\n"
-        "2) dimension_scores keys must exactly match rubric dimension names.\n"
-        "3) If evidence is insufficient, lower the score and explain why.\n"
-        "4) evidence must include short quotes from submission text or explicit attachment/checkpoint references.\n"
-        "5) feedback should have three concise parts: strengths, gaps, next focus.\n"
-        "6) action_items should be 2-3 concrete next-step suggestions for the student.\n\n"
-        "Return JSON with fields:\n"
-        "- suggested_score (1-4, average)\n"
-        "- suggested_level (excellent/good/pass/improve)\n"
-        "- dimension_scores (object)\n"
-        "- feedback (single string)\n"
-        "- evidence (list of {source, quote, reason})\n"
-        "- action_items (list of strings)\n"
+    system_prompt = load_template("evaluation_ai_assist.system.txt")
+    user_prompt = load_template("evaluation_ai_assist.user.txt").format(
+        assignment_title=ctx.assignment_title,
+        assignment_topic=ctx.assignment_topic,
+        assignment_description=ctx.assignment_description,
+        objectives_json=ctx.objectives_json,
+        phase_context=ctx.phase_context,
+        submission_text=ctx.submission_text,
+        attachments=ctx.attachments,
+        checkpoints=ctx.checkpoints,
+        rubric_text=ctx.rubric_text,
     )
 
     return system_prompt, user_prompt

@@ -1,0 +1,28 @@
+Generate a structured assignment draft from the following teaching context.
+- Title: {title}
+- Topic: {topic}
+- Description: {description}
+- School stage: {school_stage}
+- Grade: {grade}
+- Assignment type: {assignment_type}
+- Subtype: {subtype}
+- Main subject: {main_subject}
+- Related subjects: {related_subjects}
+- Reference document: {reference_document}
+- Type guidance: {type_guidance}
+- Subtype guidance: {subtype_guidance}
+- Inquiry depth: {inquiry_depth}
+- Submission mode: {submission_mode}
+- Duration weeks: {duration_weeks}
+- Depth guidance: {depth_guidance}
+
+Output requirements:
+1) objectives should be specific and concise.
+2) phases should remain coherent with increasing progression, and each phase title should show story continuity.
+3) each step should include 1-2 checkpoints only.
+4) rubric should have 5-6 dimensions with level descriptions (excellent/good/pass/improve).
+5) write step descriptions as scaffolding prompts with context, hints, and expected thinking path.
+6) avoid repeated sentence templates such as identical openings for all steps.
+7) preserve phase structure compatibility with this template (you may enrich descriptions/checkpoints):
+{template_json}
+{rag_section}
