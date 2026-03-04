@@ -4,7 +4,9 @@
 """
 
 from functools import lru_cache
+import os
 from pathlib import Path
+import re
 from typing import Optional
 
 from pydantic import Field, model_validator
@@ -76,6 +78,8 @@ class Settings(BaseSettings):
         if self.database_url.startswith("sqlite:///"):
             db_target = self.database_url[len("sqlite:///") :]
             if db_target and db_target != ":memory:":
+                if _looks_like_windows_abs_path(db_target) and os.name != "nt":
+                    db_target = "./storage/cdas.db"
                 db_path = Path(db_target)
                 if not db_path.is_absolute():
                     absolute = (BASE_DIR / db_path).resolve()
@@ -85,7 +89,15 @@ class Settings(BaseSettings):
 
 
 def _resolve_path(path_value: Path) -> Path:
+    raw = str(path_value)
+    if _looks_like_windows_abs_path(raw) and os.name != "nt":
+        tail = raw.split(":", 1)[-1].lstrip("/\\")
+        path_value = Path("./storage") / tail
     return path_value if path_value.is_absolute() else (BASE_DIR / path_value).resolve()
+
+
+def _looks_like_windows_abs_path(value: str) -> bool:
+    return bool(re.match(r"^[A-Za-z]:[\\/]", value or ""))
 
 
 @lru_cache(maxsize=1)

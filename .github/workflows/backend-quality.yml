@@ -27,4 +27,8 @@ jobs:
       - name: Backend quality gate
         env:
           PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+          CDAS_DATABASE_URL: sqlite:///./storage/cdas.db
+          CDAS_DOCUMENTS_DIR: ./storage/documents
+          CDAS_CHROMA_PERSIST_DIR: ./storage/chroma
+          CDAS_AI_LOGS_DIR: ./storage
         run: python scripts/check_backend_quality.py
