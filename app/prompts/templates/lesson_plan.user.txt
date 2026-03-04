@@ -1,41 +1,37 @@
-Task: convert this lesson plan into a student assignment draft.
-Follow constraints:
-- objectives includes knowledge/process/emotion
-- objectives.process must start with a background setting sentence prefixed by "背景设定：".
-- the background setting must be a single short paragraph (about 80-140 Chinese characters), fit grade, and match the lesson plan theme.
-- phases includes name/order/steps
-- each phase should include a scenario title that naturally continues from previous phase
-- total phase count must be 3-4 only (merge template phases if needed)
-- each phase should contain 1 core step (max 2 steps)
-- each step includes name/description/checkpoints
-- each step must include content as a short narrative bridge tied to the background setting
-- step.description should be a learning scaffold sentence with context and hint
-- across the whole assignment, highlight 4-6 truly core steps; for any extra steps from the template, mark them optional by starting description with "（可选）".
-- each description should start with a 1-sentence scene hook connected to the background setting, then give concrete guidance.
-- each checkpoint includes content/evidence_type (text/document/image/video/confirm/link)
-- rubric includes 5-6 dimensions with levels excellent/good/pass/improve
-- keep progression from task understanding to evidence production and reflection
-- avoid formulaic repetition; make students want to read and start immediately
+请把下面的教案内容转换为学生版“作业任务书”（JSON 输出）。
 
-Seed profile:
-- title={title}
-- topic={topic}
-- school_stage={school_stage}
-- grade={grade}
-- assignment_type={assignment_type}
-- inquiry_depth={inquiry_depth}
-- submission_mode={submission_mode}
-- duration_weeks={duration_weeks}
-- main_subject={main_subject}
-- related_subjects={related_subjects}
+输入概况：
+- 标题：{title}
+- 主题：{topic}
+- 学段：{school_stage}
+- 年级：{grade}
+- 作业类型：{assignment_type}
+- 探究深度：{inquiry_depth}
+- 提交模式：{submission_mode}
+- 周期：{duration_weeks} 周
+- 主学科：{main_subject}
+- 融合学科：{related_subjects}
 
-Lesson plan excerpt:
+教案摘录：
 {lesson_plan_excerpt}
 
-Structure template (keep compatible order/shape, enrich content):
+硬性要求（必须全部满足）：
+
+1) objectives.process 必须两行：
+   - 第1行“背景设定：”开头，单段 180-260 字，必须包含：时间线索、具体地点、具体人物/对象、触发事件/冲突、任务目标、限制条件、成功标准。
+   - 第2行“行动主线：”开头，40-80 字，总结整条任务链。
+2) 背景设定风格：写实校园 + 轻剧情。叙事框架从以下任选 1 个，但不要写出框架名：
+   校园新闻调查 / 后勤委托任务书 / 圆桌听证会 / 事故复盘与修复 / 校园挑战赛 / 社团行动计划。
+3) 背景设定必须出现 2-4 个“具体名词细节”。
+4) phases 只允许 3-4 个阶段，阶段 title 必须像章节标题。
+5) 每阶段 1 个核心 step（最多 2 个；第 2 个必须以“（可选）”开头）。
+   - step.name：动词短语（6-12字）
+   - step.content：情境承接句（50-90字），必须呼应背景设定的具体细节
+   - step.description：学习支架（140-240字），先场景钩子，再做法提示
+6) checkpoints 每步仅 1-2 条，写清证据、格式与标准，并填对 evidence_type。
+7) 保留教案的教学意图与活动顺序；不要随意增加教案没有的“重大结论”。
+
+结构模板（保持兼容；允许合并阶段，但不要新增超过 4 阶段）：
 {template_json}
 
-Quality constraints:
-- keep each step concise and practical for classroom execution
-- each step checkpoints count should be 1-2 only
-- avoid generic placeholders and repeated slogans
+{rag_section}

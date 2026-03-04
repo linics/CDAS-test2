@@ -43,9 +43,21 @@ class EmbeddingProvider:
             return []
         if self.settings.siliconflow_api_key:
             try:
-                return self._embed_with_siliconflow(texts)
-            except Exception:  # pragma: no cover - 外部 API 失败回退
+                vectors = self._embed_with_siliconflow(texts)
+                dim = len(vectors[0]) if vectors and vectors[0] else 0
+                _log_ai_error(
+                    "embedding_request",
+                    f"ok model={self.settings.siliconflow_embedding_model} count={len(texts)} dim={dim}",
+                )
+                return vectors
+            except Exception as exc:  # pragma: no cover - 外部 API 失败回退
+                detail = str(exc)
+                if isinstance(exc, requests.HTTPError) and exc.response is not None:
+                    detail = f"status={exc.response.status_code} body={exc.response.text[:400]}"
+                _log_ai_error("embedding_request", detail)
+                _log_ai_error("embedding_fallback", "hash_fallback_due_to_embedding_error")
                 return self._fallback_embeddings(texts)
+        _log_ai_error("embedding_fallback", "hash_fallback_no_api_key")
         return self._fallback_embeddings(texts)
 
     def _embed_with_siliconflow(self, texts: Sequence[str]) -> List[List[float]]:
@@ -101,6 +113,23 @@ class RerankProvider:
             return []
         if not self.settings.siliconflow_api_key:
             return list(range(len(documents)))
+
+        # 控制上下文长度，避免 SiliconFlow Rerank 触发 8k token 上限。
+        max_docs = 6
+        max_doc_chars = 600
+        index_map: List[int] = []
+        prepared_documents: List[str] = []
+        for idx, doc in enumerate(documents):
+            if len(prepared_documents) >= max_docs:
+                break
+            text = str(doc or "").strip()
+            if not text:
+                continue
+            prepared_documents.append(text[:max_doc_chars])
+            index_map.append(idx)
+        if not prepared_documents:
+            return list(range(len(documents)))
+
         try:
             response = requests.post(
                 "https://api.siliconflow.cn/v1/rerank",
@@ -111,15 +140,23 @@ class RerankProvider:
                 json={
                     "model": self.settings.siliconflow_rerank_model,
                     "query": query,
-                    "documents": list(documents),
+                    "documents": prepared_documents,
                 },
                 timeout=60,
             )
             response.raise_for_status()
             payload = response.json()
         except Exception as exc:  # pragma: no cover - 外部 API 失败回退
-            _log_ai_error("rerank_request", str(exc))
+            detail = str(exc)
+            if isinstance(exc, requests.HTTPError) and exc.response is not None:
+                detail = f"status={exc.response.status_code} body={exc.response.text[:400]}"
+            _log_ai_error("rerank_request", detail)
             return list(range(len(documents)))
+
+        _log_ai_error(
+            "rerank_request",
+            f"ok model={self.settings.siliconflow_rerank_model} docs={len(prepared_documents)}",
+        )
 
         data = payload.get("data", [])
         if not isinstance(data, list):
@@ -151,6 +188,8 @@ class RerankProvider:
 
         scored.sort(key=lambda pair: pair[1], reverse=True)
         indices = [idx for idx, _ in scored if 0 <= idx < len(documents)]
+        if index_map:
+            indices = [index_map[idx] for idx in indices if 0 <= idx < len(index_map)]
         if not indices:
             return list(range(len(documents)))
         return indices

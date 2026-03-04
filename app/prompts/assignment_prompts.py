@@ -41,6 +41,7 @@ class LessonPlanPromptContext:
     related_subjects: str
     lesson_plan_excerpt: str
     template_json: str
+    rag_context: str
 
 
 def build_assignment_preview_prompt(ctx: AssignmentPreviewPromptContext) -> tuple[str, str]:
@@ -74,6 +75,10 @@ def build_assignment_preview_prompt(ctx: AssignmentPreviewPromptContext) -> tupl
 
 
 def build_lesson_plan_prompt(ctx: LessonPlanPromptContext) -> tuple[str, str]:
+    rag_section = ""
+    if ctx.rag_context:
+        rag_section = f"\n学科参考片段（仅供约束与细节对齐）：\n{ctx.rag_context}\n"
+
     system_prompt = load_template("lesson_plan.system.txt")
     user_prompt = load_template("lesson_plan.user.txt").format(
         title=ctx.title,
@@ -88,5 +93,6 @@ def build_lesson_plan_prompt(ctx: LessonPlanPromptContext) -> tuple[str, str]:
         related_subjects=ctx.related_subjects,
         lesson_plan_excerpt=ctx.lesson_plan_excerpt,
         template_json=ctx.template_json,
+        rag_section=rag_section,
     )
     return system_prompt, user_prompt

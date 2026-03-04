@@ -5,7 +5,7 @@ import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -153,10 +153,19 @@ class AssignmentListResponse(BaseModel):
     total: int
 
 
+class AIGenerationMeta(BaseModel):
+    source: Literal["ai", "fallback", "manual_merge"]
+    prompt_id: str
+    prompt_version: str
+    used_rag: bool = False
+    fallback_reason: str = "none"
+
+
 class AssignmentPreviewResponse(BaseModel):
     objectives_json: Dict[str, Any]
     phases_json: List[Dict[str, Any]]
     rubric_json: Dict[str, Any]
+    meta: Optional[AIGenerationMeta] = None
 
 
 class LessonPlanDraftRequest(BaseModel):
@@ -190,6 +199,20 @@ class LessonPlanDraftResponse(BaseModel):
     phases_json: List[Dict[str, Any]]
     rubric_json: Dict[str, Any]
     source_summary: str
+    meta: Optional[AIGenerationMeta] = None
+
+
+class LessonPlanBasicsExtraction(BaseModel):
+    school_stage: Optional[str] = None
+    grade: Optional[int] = None
+    assignment_type: Optional[str] = None
+    practical_subtype: Optional[str] = None
+    inquiry_subtype: Optional[str] = None
+    inquiry_depth: Optional[str] = None
+    submission_mode: Optional[str] = None
+    duration_weeks: Optional[int] = None
+    main_subject: Optional[str] = None
+    related_subjects: List[str] = Field(default_factory=list)
 
 
 class GroupCreate(BaseModel):
@@ -428,6 +451,191 @@ def _infer_subject_ids(
     return main_subject_id, related_subject_ids
 
 
+def _normalize_subject_token(value: str) -> str:
+    normalized = re.sub(r"\s+", "", (value or "").strip().lower())
+    normalized = normalized.replace("学科", "")
+    return normalized
+
+
+def _resolve_subject_ids_from_names(
+    db: Session,
+    stage: SchoolStage,
+    main_subject_name: Optional[str],
+    related_subject_names: List[str],
+) -> tuple[Optional[int], List[int]]:
+    stage_subjects = [
+        subject
+        for subject in db.query(Subject).all()
+        if (stage == SchoolStage.PRIMARY and subject.primary_available)
+        or (stage == SchoolStage.MIDDLE and subject.middle_available)
+    ]
+    if not stage_subjects:
+        stage_subjects = db.query(Subject).all()
+
+    by_token: Dict[str, int] = {}
+    for subject in stage_subjects:
+        for token in [subject.name or "", subject.code or ""]:
+            normalized = _normalize_subject_token(token)
+            if normalized:
+                by_token[normalized] = subject.id
+
+    def match_subject_id(raw_name: Optional[str]) -> Optional[int]:
+        token = _normalize_subject_token(raw_name or "")
+        if not token:
+            return None
+        if token in by_token:
+            return by_token[token]
+        for key, subject_id in by_token.items():
+            if token in key or key in token:
+                return subject_id
+        return None
+
+    main_subject_id = match_subject_id(main_subject_name)
+    related_subject_ids: List[int] = []
+    seen = {main_subject_id} if main_subject_id else set()
+    for name in related_subject_names:
+        subject_id = match_subject_id(name)
+        if subject_id and subject_id not in seen:
+            seen.add(subject_id)
+            related_subject_ids.append(subject_id)
+    return main_subject_id, related_subject_ids
+
+
+def _normalize_school_stage(value: Optional[str]) -> Optional[SchoolStage]:
+    token = (value or "").strip().lower()
+    if token in {"primary", "小学"}:
+        return SchoolStage.PRIMARY
+    if token in {"middle", "初中"}:
+        return SchoolStage.MIDDLE
+    return None
+
+
+def _normalize_assignment_type(value: Optional[str]) -> Optional[AssignmentType]:
+    token = (value or "").strip().lower()
+    mapping = {
+        "practical": AssignmentType.PRACTICAL,
+        "实践": AssignmentType.PRACTICAL,
+        "实践性作业": AssignmentType.PRACTICAL,
+        "inquiry": AssignmentType.INQUIRY,
+        "探究": AssignmentType.INQUIRY,
+        "探究性作业": AssignmentType.INQUIRY,
+        "project": AssignmentType.PROJECT,
+        "项目": AssignmentType.PROJECT,
+        "项目式作业": AssignmentType.PROJECT,
+    }
+    return mapping.get(token)
+
+
+def _normalize_inquiry_depth(value: Optional[str]) -> Optional[InquiryDepth]:
+    token = (value or "").strip().lower()
+    mapping = {
+        "basic": InquiryDepth.BASIC,
+        "基础": InquiryDepth.BASIC,
+        "intermediate": InquiryDepth.INTERMEDIATE,
+        "中等": InquiryDepth.INTERMEDIATE,
+        "deep": InquiryDepth.DEEP,
+        "深度": InquiryDepth.DEEP,
+    }
+    return mapping.get(token)
+
+
+def _normalize_submission_mode(value: Optional[str]) -> Optional[SubmissionMode]:
+    token = (value or "").strip().lower()
+    mapping = {
+        "phased": SubmissionMode.PHASED,
+        "过程性提交": SubmissionMode.PHASED,
+        "once": SubmissionMode.ONCE,
+        "一次性提交": SubmissionMode.ONCE,
+        "mixed": SubmissionMode.MIXED,
+        "混合提交": SubmissionMode.MIXED,
+    }
+    return mapping.get(token)
+
+
+def _normalize_practical_subtype(value: Optional[str]) -> Optional[PracticalSubType]:
+    token = (value or "").strip().lower()
+    mapping = {
+        "visit": PracticalSubType.VISIT,
+        "参观考察": PracticalSubType.VISIT,
+        "simulation": PracticalSubType.SIMULATION,
+        "模拟表演": PracticalSubType.SIMULATION,
+        "observation": PracticalSubType.OBSERVATION,
+        "观察体验": PracticalSubType.OBSERVATION,
+    }
+    return mapping.get(token)
+
+
+def _normalize_inquiry_subtype(value: Optional[str]) -> Optional[InquirySubType]:
+    token = (value or "").strip().lower()
+    mapping = {
+        "literature": InquirySubType.LITERATURE,
+        "文献探究": InquirySubType.LITERATURE,
+        "survey": InquirySubType.SURVEY,
+        "调查探究": InquirySubType.SURVEY,
+        "experiment": InquirySubType.EXPERIMENT,
+        "实验探究": InquirySubType.EXPERIMENT,
+    }
+    return mapping.get(token)
+
+
+def _extract_lesson_plan_basics_with_ai(
+    text: str,
+    db: Session,
+    request_data: LessonPlanDraftRequest,
+) -> Dict[str, Any]:
+    settings = get_settings()
+    client = DeepSeekJSONClient(settings, temperature=0.0, max_output_tokens=600, request_timeout=45)
+    if not client.is_available:
+        return {}
+
+    excerpt = _summarize_text(text, max_length=3200)
+    system_prompt = (
+        "你是K12教案结构化提取助手。"
+        "只输出JSON对象，不要解释。"
+        "仅提取基础表单字段，不要生成标题，不要生成步骤正文。"
+    )
+    user_prompt = (
+        "请从教案文本中提取字段：school_stage, grade, assignment_type, practical_subtype, "
+        "inquiry_subtype, inquiry_depth, submission_mode, duration_weeks, main_subject, related_subjects。\n"
+        "school_stage仅可为 primary/middle；assignment_type仅可为 practical/inquiry/project；"
+        "inquiry_depth仅可为 basic/intermediate/deep；submission_mode仅可为 phased/once/mixed。\n"
+        "related_subjects必须是字符串数组。若无法判断字段则返回 null 或空数组。\n"
+        f"教案文本：\n{excerpt}"
+    )
+
+    try:
+        payload = client.predict_json(system_prompt, user_prompt)
+        extracted = LessonPlanBasicsExtraction.model_validate(payload)
+    except Exception as exc:
+        _log_ai_generation_error(exc)
+        return {}
+
+    stage = _normalize_school_stage(extracted.school_stage)
+    if stage is None:
+        fallback_grade = extracted.grade if isinstance(extracted.grade, int) else request_data.grade
+        stage = _infer_school_stage(text, fallback_grade)
+
+    main_subject_id, related_subject_ids = _resolve_subject_ids_from_names(
+        db,
+        stage,
+        extracted.main_subject,
+        extracted.related_subjects or [],
+    )
+
+    return {
+        "school_stage": stage,
+        "grade": extracted.grade,
+        "assignment_type": _normalize_assignment_type(extracted.assignment_type),
+        "practical_subtype": _normalize_practical_subtype(extracted.practical_subtype),
+        "inquiry_subtype": _normalize_inquiry_subtype(extracted.inquiry_subtype),
+        "inquiry_depth": _normalize_inquiry_depth(extracted.inquiry_depth),
+        "submission_mode": _normalize_submission_mode(extracted.submission_mode),
+        "duration_weeks": extracted.duration_weeks,
+        "main_subject_id": main_subject_id,
+        "related_subject_ids": related_subject_ids,
+    }
+
+
 def _build_lesson_plan_seed(
     request_data: LessonPlanDraftRequest,
     document: Document,
@@ -436,23 +644,26 @@ def _build_lesson_plan_seed(
 ) -> AssignmentCreate:
     doc_meta = document.metadata_json or {}
     fallback_subject_id = doc_meta.get("subject_id") if isinstance(doc_meta, dict) else None
+    extracted = _extract_lesson_plan_basics_with_ai(text, db, request_data)
 
-    inferred_grade = request_data.grade or _infer_grade_from_text(text) or 8
-    inferred_stage = request_data.school_stage or _infer_school_stage(text, inferred_grade)
+    inferred_grade = request_data.grade or extracted.get("grade") or _infer_grade_from_text(text) or 8
+    inferred_stage = request_data.school_stage or extracted.get("school_stage") or _infer_school_stage(text, inferred_grade)
     if inferred_stage == SchoolStage.PRIMARY and inferred_grade > 6:
         inferred_grade = 6
     if inferred_stage == SchoolStage.MIDDLE and inferred_grade < 7:
         inferred_grade = 7
 
-    inferred_type = request_data.assignment_type or _infer_assignment_type(text)
+    inferred_type = request_data.assignment_type or extracted.get("assignment_type") or _infer_assignment_type(text)
     practical_subtype, inquiry_subtype = _infer_subtypes(inferred_type, text)
+    practical_subtype = extracted.get("practical_subtype") or practical_subtype
+    inquiry_subtype = extracted.get("inquiry_subtype") or inquiry_subtype
 
     main_subject_id, related_subject_ids = _infer_subject_ids(
         db,
         text,
         inferred_stage,
-        request_data.main_subject_id,
-        request_data.related_subject_ids,
+        request_data.main_subject_id or extracted.get("main_subject_id"),
+        request_data.related_subject_ids or extracted.get("related_subject_ids") or [],
         int(fallback_subject_id) if isinstance(fallback_subject_id, int) else None,
     )
 
@@ -471,7 +682,7 @@ def _build_lesson_plan_seed(
     topic = re.sub(r"^(教案|教学设计|课程设计)\s*", "", title).strip() or title
     description = _summarize_text(text, max_length=900)
 
-    duration_weeks = request_data.duration_weeks or 2
+    duration_weeks = request_data.duration_weeks or extracted.get("duration_weeks") or 2
     week_match = re.search(r"(\d{1,2})\s*周", text)
     if week_match:
         duration_weeks = max(1, min(16, int(week_match.group(1))))
@@ -488,8 +699,8 @@ def _build_lesson_plan_seed(
         assignment_type=inferred_type,
         practical_subtype=practical_subtype,
         inquiry_subtype=inquiry_subtype,
-        inquiry_depth=request_data.inquiry_depth or InquiryDepth.INTERMEDIATE,
-        submission_mode=request_data.submission_mode or SubmissionMode.PHASED,
+        inquiry_depth=request_data.inquiry_depth or extracted.get("inquiry_depth") or InquiryDepth.INTERMEDIATE,
+        submission_mode=request_data.submission_mode or extracted.get("submission_mode") or SubmissionMode.PHASED,
         duration_weeks=duration_weeks,
         deadline=None,
         objectives_json=None,
@@ -503,27 +714,47 @@ def _build_lesson_plan_seed(
 @router.post("/preview", response_model=AssignmentPreviewResponse)
 async def preview_assignment(
     data: AssignmentCreate,
+    force_generate: bool = True,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_teacher),
 ):
     """生成作业的 AI 预览内容，不入库。"""
-    _validate_reference_document(db, data.document_id)
+    document = _validate_reference_document(db, data.document_id)
     objectives = data.objectives_json or {}
     phases = data.phases_json or []
     rubric = data.rubric_json or {}
-    if _is_empty_json(objectives) or _is_empty_json(phases) or _is_empty_json(rubric):
-        gen_objectives, gen_phases, gen_rubric = _generate_ai_content(data)
+    meta = _build_generation_meta(ASSIGNMENT_PREVIEW_PROMPT, source="manual_merge")
+
+    if force_generate:
+        lesson_plan_text = _extract_document_text(document) if document else ""
+        if lesson_plan_text.strip():
+            objectives, phases, rubric, meta = _generate_ai_content_from_lesson_plan_with_meta(data, lesson_plan_text)
+        else:
+            objectives, phases, rubric, meta = _generate_ai_content_with_meta(data)
+    elif _is_empty_json(objectives) or _is_empty_json(phases) or _is_empty_json(rubric):
+        gen_objectives, gen_phases, gen_rubric, gen_meta = _generate_ai_content_with_meta(data)
         if _is_empty_json(objectives):
             objectives = gen_objectives
         if _is_empty_json(phases):
             phases = gen_phases
         if _is_empty_json(rubric):
             rubric = gen_rubric
+        if _is_empty_json(data.objectives_json) and _is_empty_json(data.phases_json) and _is_empty_json(data.rubric_json):
+            meta = gen_meta
+        else:
+            meta = _build_generation_meta(
+                ASSIGNMENT_PREVIEW_PROMPT,
+                source="manual_merge",
+                used_rag=bool(gen_meta.get("used_rag")),
+                fallback_reason=gen_meta.get("fallback_reason", "none") if gen_meta.get("source") == "fallback" else "none",
+            )
+
     objectives, phases, rubric = _ensure_ai_defaults(data, objectives, phases, rubric)
     return {
         "objectives_json": objectives,
         "phases_json": phases,
         "rubric_json": rubric,
+        "meta": meta,
     }
 
 
@@ -543,7 +774,7 @@ async def generate_assignment_from_lesson_plan(
         raise HTTPException(status_code=400, detail="教案内容为空，无法生成草稿")
 
     seed = _build_lesson_plan_seed(data, document, lesson_plan_text, db)
-    objectives, phases, rubric = _generate_ai_content_from_lesson_plan(seed, lesson_plan_text)
+    objectives, phases, rubric, meta = _generate_ai_content_from_lesson_plan_with_meta(seed, lesson_plan_text)
     objectives, phases, rubric = _ensure_ai_defaults(seed, objectives, phases, rubric)
 
     return {
@@ -565,6 +796,7 @@ async def generate_assignment_from_lesson_plan(
         "phases_json": phases,
         "rubric_json": rubric,
         "source_summary": _summarize_text(lesson_plan_text, max_length=280),
+        "meta": meta,
     }
 
 
@@ -1173,19 +1405,73 @@ def _resolve_document_name(document_id: Optional[int]) -> str:
     return document.filename
 
 
-def _build_rag_context(data: AssignmentCreate, subject_ids: List[int]) -> str:
+def _collect_weighted_rag_chunks(
+    inventory: InventoryService,
+    query: str,
+    main_subject_id: int,
+    related_subject_ids: List[int],
+    document_id: Optional[int],
+) -> List[Dict[str, Any]]:
+    weighted: List[tuple[int, Dict[str, Any]]] = []
+
+    main_chunks = inventory.query_chunks(
+        query,
+        subject_ids=[main_subject_id],
+        document_ids=None,
+        limit=6,
+    )
+    for chunk in main_chunks:
+        weighted.append((100, chunk))
+
+    for subject_id in related_subject_ids[:3]:
+        related_chunks = inventory.query_chunks(
+            query,
+            subject_ids=[subject_id],
+            document_ids=None,
+            limit=3,
+        )
+        for chunk in related_chunks:
+            weighted.append((70, chunk))
+
+    if document_id:
+        document_chunks = inventory.query_chunks(
+            query,
+            subject_ids=None,
+            document_ids=[document_id],
+            limit=4,
+        )
+        for chunk in document_chunks:
+            weighted.append((60, chunk))
+
+    weighted.sort(key=lambda item: item[0], reverse=True)
+    deduped: List[Dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    for _weight, chunk in weighted:
+        key = str(chunk.get("id") or "")
+        if not key or key in seen_ids:
+            continue
+        seen_ids.add(key)
+        deduped.append(chunk)
+        if len(deduped) >= 8:
+            break
+    return deduped
+
+
+def _build_rag_context(data: AssignmentCreate) -> str:
     query = " ".join(
         [part for part in [data.title, data.topic, data.description or ""] if part]
     ).strip()
     if not query:
         return ""
+    main_subject_id = data.main_subject_id
+    related_subject_ids = [sid for sid in (data.related_subject_ids or []) if sid != main_subject_id]
     inventory = InventoryService(get_settings())
-    document_ids = [data.document_id] if data.document_id else None
-    chunks = inventory.query_chunks(
+    chunks = _collect_weighted_rag_chunks(
+        inventory,
         query,
-        subject_ids=None if document_ids else subject_ids,
-        document_ids=document_ids,
-        limit=10,
+        main_subject_id=main_subject_id,
+        related_subject_ids=related_subject_ids,
+        document_id=data.document_id,
     )
     if not chunks:
         return ""
@@ -1265,7 +1551,47 @@ def _default_rubric(assignment_type: AssignmentType) -> Dict[str, Any]:
     }
 
 
-def _generate_ai_content(data: AssignmentCreate) -> tuple[Dict[str, Any], List[Dict[str, Any]], Dict[str, Any]]:
+def _build_generation_meta(
+    prompt_spec: Any,
+    source: Literal["ai", "fallback", "manual_merge"],
+    used_rag: bool = False,
+    fallback_reason: str = "none",
+) -> Dict[str, Any]:
+    return {
+        "source": source,
+        "prompt_id": getattr(prompt_spec, "prompt_id", "unknown"),
+        "prompt_version": getattr(prompt_spec, "version", "unknown"),
+        "used_rag": used_rag,
+        "fallback_reason": fallback_reason,
+    }
+
+
+def _classify_fallback_reason(error: Exception) -> str:
+    lowered = f"{type(error).__name__}: {error}".lower()
+    if "timeout" in lowered or "timed out" in lowered:
+        return "timeout"
+    if "json" in lowered or "parse" in lowered or "decode" in lowered:
+        return "parse_error"
+    return "request_error"
+
+
+_FORMULAIC_PROCESS_PATTERNS = (
+    "你将作为",
+    "本次任务不是纸面练习",
+    "请把自己代入任务角色",
+)
+
+
+def _looks_formulaic_objectives(objectives: Dict[str, Any]) -> bool:
+    process_text = str((objectives or {}).get("process") or "")
+    if not process_text:
+        return False
+    return any(pattern in process_text for pattern in _FORMULAIC_PROCESS_PATTERNS)
+
+
+def _generate_ai_content_with_meta(
+    data: AssignmentCreate,
+) -> tuple[Dict[str, Any], List[Dict[str, Any]], Dict[str, Any], Dict[str, Any]]:
     settings = get_settings()
     client = DeepSeekJSONClient(settings)
     _log_ai_debug(
@@ -1278,7 +1604,16 @@ def _generate_ai_content(data: AssignmentCreate) -> tuple[Dict[str, Any], List[D
     default_rubric = _default_rubric(data.assignment_type)
 
     if not client.is_available:
-        return default_objectives, template_phases, default_rubric
+        return (
+            default_objectives,
+            template_phases,
+            default_rubric,
+            _build_generation_meta(
+                ASSIGNMENT_PREVIEW_PROMPT,
+                source="fallback",
+                fallback_reason="provider_unavailable",
+            ),
+        )
 
     type_map = {
         AssignmentType.PRACTICAL: "实践性作业",
@@ -1315,14 +1650,14 @@ def _generate_ai_content(data: AssignmentCreate) -> tuple[Dict[str, Any], List[D
         }.get(data.inquiry_subtype, data.inquiry_subtype.value)
 
     subject_ids = [data.main_subject_id] + [
-        subject_id for subject_id in (data.related_subject_ids or [])
-        if subject_id != data.main_subject_id
+        subject_id for subject_id in (data.related_subject_ids or []) if subject_id != data.main_subject_id
     ]
     subject_labels = _resolve_subject_names(subject_ids)
     main_subject_label = subject_labels[0] if subject_labels else f"id={data.main_subject_id}"
     related_subjects_label = ", ".join(subject_labels[1:]) if len(subject_labels) > 1 else "none"
     reference_document_label = _resolve_document_name(data.document_id)
-    rag_context = _build_rag_context(data, subject_ids)
+    rag_context = _build_rag_context(data)
+    used_rag = bool((rag_context or "").strip())
 
     type_guidance = {
         AssignmentType.PRACTICAL: "Emphasize authentic practice, process evidence, output artifacts, and reflection.",
@@ -1373,27 +1708,68 @@ def _generate_ai_content(data: AssignmentCreate) -> tuple[Dict[str, Any], List[D
     )
     system_prompt, user_prompt = build_assignment_preview_prompt(prompt_context)
 
-    try:
-        raw_payload = client.predict_json(system_prompt, user_prompt)
-        normalized = _normalize_ai_assignment_output(raw_payload)
-        objectives = normalized.get("objectives") or default_objectives
-        ai_phases = normalized.get("phases") or []
-        phases = _merge_phases(copy.deepcopy(template_phases), ai_phases)
-        rubric = normalized.get("rubric") or {}
-        if not rubric.get("dimensions"):
-            rubric = default_rubric
-        return objectives, phases, rubric
-    except Exception as exc:
-        _log_ai_generation_error(exc)
-        return default_objectives, template_phases, default_rubric
+    last_error: Exception | None = None
+    for attempt in range(2):
+        try:
+            raw_payload = client.predict_json(system_prompt, user_prompt)
+            normalized = _normalize_ai_assignment_output(raw_payload)
+            objectives = normalized.get("objectives") or default_objectives
+
+            if _looks_formulaic_objectives(objectives):
+                if attempt == 0:
+                    _log_ai_debug("preview_formulaic_guard_hit retry=1")
+                    continue
+                raise ValueError("formulaic_guard_hit")
+
+            ai_phases = normalized.get("phases") or []
+            if _is_compact_story_phases(ai_phases):
+                phases = _normalize_compact_story_phases(ai_phases)
+            else:
+                phases = _merge_phases(copy.deepcopy(template_phases), ai_phases)
+            rubric = normalized.get("rubric") or {}
+            if not rubric.get("dimensions"):
+                rubric = default_rubric
+            return (
+                objectives,
+                phases,
+                rubric,
+                _build_generation_meta(ASSIGNMENT_PREVIEW_PROMPT, source="ai", used_rag=used_rag),
+            )
+        except Exception as exc:
+            last_error = exc
+            _log_ai_generation_error(exc)
+            if attempt == 0:
+                _log_ai_debug(f"preview_retry_on_error reason={_classify_fallback_reason(exc)}")
+                continue
+            break
+
+    fallback_reason = _classify_fallback_reason(last_error) if last_error else "request_error"
+    if isinstance(last_error, ValueError) and str(last_error) == "formulaic_guard_hit":
+        fallback_reason = "formulaic_guard_hit"
+    return (
+        default_objectives,
+        template_phases,
+        default_rubric,
+        _build_generation_meta(
+            ASSIGNMENT_PREVIEW_PROMPT,
+            source="fallback",
+            used_rag=used_rag,
+            fallback_reason=fallback_reason,
+        ),
+    )
 
 
-def _generate_ai_content_from_lesson_plan(
+def _generate_ai_content(data: AssignmentCreate) -> tuple[Dict[str, Any], List[Dict[str, Any]], Dict[str, Any]]:
+    objectives, phases, rubric, _meta = _generate_ai_content_with_meta(data)
+    return objectives, phases, rubric
+
+
+def _generate_ai_content_from_lesson_plan_with_meta(
     data: AssignmentCreate,
     lesson_plan_text: str,
-) -> tuple[Dict[str, Any], List[Dict[str, Any]], Dict[str, Any]]:
+) -> tuple[Dict[str, Any], List[Dict[str, Any]], Dict[str, Any], Dict[str, Any]]:
     settings = get_settings()
-    client = DeepSeekJSONClient(settings, temperature=0.1, max_output_tokens=1600, request_timeout=25)
+    client = DeepSeekJSONClient(settings, temperature=0.1, max_output_tokens=2200, request_timeout=75)
     _log_ai_debug(
         "generate_from_lesson_plan_called "
         f"prompt={ASSIGNMENT_LESSON_PLAN_PROMPT.log_label()} "
@@ -1404,7 +1780,16 @@ def _generate_ai_content_from_lesson_plan(
     default_objectives = _default_objectives(data)
     default_rubric = _default_rubric(data.assignment_type)
     if not client.is_available:
-        return default_objectives, template_phases, default_rubric
+        return (
+            default_objectives,
+            template_phases,
+            default_rubric,
+            _build_generation_meta(
+                ASSIGNMENT_LESSON_PLAN_PROMPT,
+                source="fallback",
+                fallback_reason="provider_unavailable",
+            ),
+        )
 
     subject_ids = [data.main_subject_id] + [
         subject_id for subject_id in (data.related_subject_ids or []) if subject_id != data.main_subject_id
@@ -1415,6 +1800,8 @@ def _generate_ai_content_from_lesson_plan(
 
     lesson_plan_excerpt = _summarize_text(lesson_plan_text, max_length=2800)
     template_json = json.dumps(template_phases, ensure_ascii=False, indent=2)
+    rag_context = _build_rag_context(data)
+    used_rag = bool((rag_context or "").strip())
 
     prompt_context = LessonPlanPromptContext(
         title=data.title,
@@ -1429,22 +1816,67 @@ def _generate_ai_content_from_lesson_plan(
         related_subjects=related_subjects_label,
         lesson_plan_excerpt=lesson_plan_excerpt,
         template_json=template_json,
+        rag_context=rag_context,
     )
     system_prompt, user_prompt = build_lesson_plan_prompt(prompt_context)
 
-    try:
-        raw_payload = client.predict_json(system_prompt, user_prompt)
-        normalized = _normalize_ai_assignment_output(raw_payload)
-        objectives = normalized.get("objectives") or default_objectives
-        ai_phases = normalized.get("phases") or []
-        phases = _merge_phases(copy.deepcopy(template_phases), ai_phases)
-        rubric = normalized.get("rubric") or {}
-        if not rubric.get("dimensions"):
-            rubric = default_rubric
-        return objectives, phases, rubric
-    except Exception as exc:
-        _log_ai_generation_error(exc)
-        return default_objectives, template_phases, default_rubric
+    last_error: Exception | None = None
+    for attempt in range(2):
+        try:
+            raw_payload = client.predict_json(system_prompt, user_prompt)
+            normalized = _normalize_ai_assignment_output(raw_payload)
+            objectives = normalized.get("objectives") or default_objectives
+
+            if _looks_formulaic_objectives(objectives):
+                if attempt == 0:
+                    _log_ai_debug("lesson_plan_formulaic_guard_hit retry=1")
+                    continue
+                raise ValueError("formulaic_guard_hit")
+
+            ai_phases = normalized.get("phases") or []
+            if _is_compact_story_phases(ai_phases):
+                phases = _normalize_compact_story_phases(ai_phases)
+            else:
+                phases = _merge_phases(copy.deepcopy(template_phases), ai_phases)
+            rubric = normalized.get("rubric") or {}
+            if not rubric.get("dimensions"):
+                rubric = default_rubric
+            return (
+                objectives,
+                phases,
+                rubric,
+                _build_generation_meta(ASSIGNMENT_LESSON_PLAN_PROMPT, source="ai", used_rag=used_rag),
+            )
+        except Exception as exc:
+            last_error = exc
+            _log_ai_generation_error(exc)
+            if attempt == 0:
+                _log_ai_debug(f"lesson_plan_retry_on_error reason={_classify_fallback_reason(exc)}")
+                continue
+            break
+
+    fallback_reason = _classify_fallback_reason(last_error) if last_error else "request_error"
+    if isinstance(last_error, ValueError) and str(last_error) == "formulaic_guard_hit":
+        fallback_reason = "formulaic_guard_hit"
+    return (
+        default_objectives,
+        template_phases,
+        default_rubric,
+        _build_generation_meta(
+            ASSIGNMENT_LESSON_PLAN_PROMPT,
+            source="fallback",
+            used_rag=used_rag,
+            fallback_reason=fallback_reason,
+        ),
+    )
+
+
+def _generate_ai_content_from_lesson_plan(
+    data: AssignmentCreate,
+    lesson_plan_text: str,
+) -> tuple[Dict[str, Any], List[Dict[str, Any]], Dict[str, Any]]:
+    objectives, phases, rubric, _meta = _generate_ai_content_from_lesson_plan_with_meta(data, lesson_plan_text)
+    return objectives, phases, rubric
 
 
 _ALLOWED_EVIDENCE_TYPES = {"text", "document", "image", "video", "confirm", "link"}
@@ -1499,6 +1931,95 @@ def _infer_evidence_type(text: str) -> str:
     if any(keyword in lowered for keyword in ("ppt", "pdf", "doc", "docx", "xls", "xlsx")):
         return "document"
     return "text"
+
+
+def _is_compact_story_phases(phases: List[Dict[str, Any]]) -> bool:
+    if not isinstance(phases, list):
+        return False
+    if len(phases) < 3 or len(phases) > 4:
+        return False
+    for phase in phases:
+        if not isinstance(phase, dict):
+            return False
+        steps = phase.get("steps")
+        if not isinstance(steps, list) or not steps:
+            return False
+        if len(steps) > 2:
+            return False
+        for step in steps:
+            if not isinstance(step, dict):
+                return False
+            if not (step.get("name") and step.get("description")):
+                return False
+            checkpoints = step.get("checkpoints")
+            if not isinstance(checkpoints, list) or not checkpoints:
+                return False
+    return True
+
+
+def _normalize_compact_story_phases(phases: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    normalized: List[Dict[str, Any]] = []
+    for phase_index, phase in enumerate(phases, start=1):
+        phase_name = str(phase.get("name") or phase.get("title") or f"阶段{phase_index}").strip()
+        phase_title = str(phase.get("title") or phase_name).strip()
+
+        raw_steps = phase.get("steps") or []
+        if isinstance(raw_steps, dict):
+            raw_steps = [raw_steps]
+        step_list = [step for step in raw_steps if isinstance(step, dict)][:2]
+        if not step_list:
+            step_list = [{"name": "核心任务", "description": "请完成本阶段核心任务并提交证据。", "checkpoints": []}]
+
+        steps: List[Dict[str, Any]] = []
+        for step in step_list:
+            step_name = str(step.get("name") or step.get("title") or "步骤").strip()
+            description = str(step.get("description") or "").strip()
+            content = str(step.get("content") or "").strip()
+
+            checkpoints = step.get("checkpoints") or []
+            if isinstance(checkpoints, dict):
+                checkpoints = [checkpoints]
+            if isinstance(checkpoints, str):
+                checkpoints = [checkpoints]
+            normalized_checkpoints: List[Dict[str, Any]] = []
+            if isinstance(checkpoints, list):
+                for cp in checkpoints[:2]:
+                    if isinstance(cp, str):
+                        cp_content = cp
+                        cp_type = _infer_evidence_type(cp_content)
+                    elif isinstance(cp, dict):
+                        cp_content = (cp.get("content") or cp.get("text") or cp.get("description") or "").strip()
+                        cp_type = cp.get("evidence_type")
+                        if cp_type not in _ALLOWED_EVIDENCE_TYPES:
+                            cp_type = _infer_evidence_type(cp_content)
+                    else:
+                        cp_content = str(cp)
+                        cp_type = _infer_evidence_type(cp_content)
+                    if cp_content:
+                        normalized_checkpoints.append({"content": cp_content, "evidence_type": cp_type})
+
+            if normalized_checkpoints:
+                normalized_checkpoints = _clean_checkpoints(description, normalized_checkpoints)
+
+            steps.append(
+                {
+                    "name": step_name,
+                    "description": description,
+                    "checkpoints": normalized_checkpoints,
+                    **({"content": content} if content else {}),
+                }
+            )
+
+        normalized.append(
+            {
+                "name": phase_name,
+                "title": phase_title,
+                "order": phase_index,
+                "steps": steps,
+            }
+        )
+
+    return normalized
 
 
 def _merge_phases(
@@ -1758,11 +2279,227 @@ def _log_ai_debug(message: str) -> None:
         pass
 
 
+def _build_background_setting(data: AssignmentCreate) -> str:
+    stage_label = "小学" if data.school_stage == SchoolStage.PRIMARY else "初中"
+    role_map = {
+        AssignmentType.PRACTICAL: "校园实践小队",
+        AssignmentType.INQUIRY: "校园研究小队",
+        AssignmentType.PROJECT: "校园项目小队",
+    }
+    role = role_map.get(data.assignment_type, "学习小队")
+    return (
+        f"你将作为{stage_label}{data.grade}年级的{role}成员，"
+        f"围绕“{data.topic}”进入真实学习情境。"
+        f"本次任务不是纸面练习，而是一次面向真实对象的行动挑战："
+        f"你需要在调查、分析与创作中逐步推进方案，让你的成果真正能被同学或老师看见并使用。"
+    )
+
+
+def _build_process_mainline(data: AssignmentCreate) -> str:
+    if data.assignment_type == AssignmentType.PRACTICAL:
+        return "行动主线：先完成真实场景观察与记录，再提炼关键发现并形成可展示成果，最后进行复盘反思。"
+    if data.assignment_type == AssignmentType.INQUIRY:
+        return "行动主线：围绕核心问题收集证据、进行分析论证并形成结论，再把发现转化为清晰表达与改进建议。"
+    return "行动主线：围绕真实问题完成方案设计、阶段实施与迭代优化，最终提交可验证的成果并复盘经验。"
+
+
+def _split_background_and_process(process_text: str) -> tuple[str, str]:
+    raw = (process_text or "").strip()
+    if not raw:
+        return "", ""
+    if not raw.startswith("背景设定：") and not raw.startswith("背景设定:"):
+        return "", raw
+
+    body = re.sub(r"^背景设定[:：]\s*", "", raw)
+    lines = [line.strip() for line in body.splitlines() if line.strip()]
+    if len(lines) >= 2:
+        return lines[0], "\n".join(lines[1:]).strip()
+
+    marker = "行动主线："
+    if marker in body:
+        prefix, suffix = body.split(marker, 1)
+        return prefix.strip(), f"{marker}{suffix.strip()}"
+
+    if len(body) > 160:
+        split_idx = max(body.rfind("。", 0, 160), body.rfind("！", 0, 160), body.rfind("？", 0, 160))
+        if split_idx >= 40:
+            return body[: split_idx + 1].strip(), body[split_idx + 1 :].strip()
+
+    return body.strip(), ""
+
+
+def _ensure_background_setting(data: AssignmentCreate, objectives: Dict[str, Any]) -> Dict[str, Any]:
+    normalized = dict(objectives or {})
+    for key in ("knowledge", "process", "emotion"):
+        value = normalized.get(key)
+        normalized[key] = value if isinstance(value, str) else ("" if value is None else str(value))
+
+    process_text = (normalized.get("process") or "").strip()
+    background, process_core = _split_background_and_process(process_text)
+
+    if not background:
+        background = _build_background_setting(data)
+    elif len(background) < 90:
+        extra_map = {
+            AssignmentType.PRACTICAL: "你们将走进真实场地，与同伴协作完成观察、记录与表达，让学习成果真正贴近校园生活。",
+            AssignmentType.INQUIRY: "你们将带着问题走进真实语境，通过证据收集与推理验证，形成有说服力的解释与结论。",
+            AssignmentType.PROJECT: "你们将以团队方式推进阶段任务，把想法逐步落地为可展示、可验证、可改进的项目成果。",
+        }
+        extra = extra_map.get(data.assignment_type, "你们将通过真实任务推进，最终形成可展示的学习成果。")
+        background = f"{background.rstrip('。') if background else background}。{extra}" if background else extra
+
+    if len(background) < 120:
+        background = (
+            f"{background.rstrip('。')}。"
+            "请把自己代入任务角色，在每个阶段都明确“为什么做、怎么做、做成什么样”，"
+            "并让你的证据能真实反映行动过程与思考变化。"
+        )
+
+    if not process_core:
+        process_core = _build_process_mainline(data)
+    elif len(process_core) < 38:
+        process_core = f"{process_core.rstrip('。')}。{_build_process_mainline(data)}"
+
+    normalized["process"] = f"背景设定：{background}\n{process_core}".strip()
+    return normalized
+
+
+def _pick_story_phase_indices(total: int, target: int) -> List[int]:
+    if target >= total:
+        return list(range(total))
+    if target <= 1:
+        return [0]
+    points: List[int] = []
+    for i in range(target):
+        idx = round(i * (total - 1) / (target - 1))
+        points.append(int(idx))
+    unique = sorted(set(points))
+    while len(unique) < target:
+        for idx in range(total):
+            if idx not in unique:
+                unique.append(idx)
+            if len(unique) >= target:
+                break
+    return sorted(unique[:target])
+
+
+def _normalize_storyline_phases(phases: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    valid_phases = [phase for phase in phases if isinstance(phase, dict)]
+    if not valid_phases:
+        return phases
+
+    target_phase_count = len(valid_phases)
+    if target_phase_count > 4:
+        target_phase_count = 4
+    if target_phase_count < 3 and len(valid_phases) >= 3:
+        target_phase_count = 3
+
+    if len(valid_phases) > target_phase_count:
+        picked_indices = _pick_story_phase_indices(len(valid_phases), target_phase_count)
+        selected_phases = [valid_phases[idx] for idx in picked_indices]
+    else:
+        selected_phases = valid_phases
+
+    normalized_phases: List[Dict[str, Any]] = []
+    core_step_budget = 6
+    core_step_count = 0
+
+    for phase_index, phase in enumerate(selected_phases, start=1):
+        phase_name = str(phase.get("name") or phase.get("title") or f"阶段{phase_index}").strip()
+        phase_title = str(phase.get("title") or phase_name).strip()
+
+        raw_steps = phase.get("steps")
+        if isinstance(raw_steps, dict):
+            raw_steps = [raw_steps]
+        elif isinstance(raw_steps, str):
+            raw_steps = [{"name": raw_steps, "description": raw_steps}]
+        elif not isinstance(raw_steps, list):
+            raw_steps = []
+
+        step_list = [step for step in raw_steps if isinstance(step, dict)]
+        if not step_list:
+            step_list = [{"name": "核心任务", "description": "请完成本阶段核心任务并提交证据。", "checkpoints": []}]
+        step_list = step_list[:2]
+
+        normalized_steps: List[Dict[str, Any]] = []
+        for step_index, step in enumerate(step_list, start=1):
+            step_name = str(step.get("name") or step.get("title") or f"步骤{step_index}").strip()
+            description = str(step.get("description") or step.get("content") or "").strip()
+            if not description:
+                description = f"请围绕“{phase_title}”完成“{step_name}”，并记录关键证据。"
+            if not description.startswith("在这个情境中") and not description.startswith("（可选）在这个情境中"):
+                description = f"在这个情境中，{description}"
+            if len(description) < 88:
+                description = (
+                    f"{description} 先明确你要解决的具体问题，再根据阶段目标选择合适的方法推进；"
+                    f"过程中请记录关键证据、同伴分工与判断依据，并在阶段结束时总结“本步发现了什么、下一步将如何调整”。"
+                )
+
+            is_core = step_index == 1 and core_step_count < core_step_budget
+            if is_core:
+                core_step_count += 1
+            elif not description.startswith("（可选）"):
+                description = f"（可选）{description}"
+
+            content = str(step.get("content") or "").strip()
+            if not content:
+                content = f"情境推进：围绕“{phase_title}”，推进“{step_name}”。"
+            elif len(content) < 42:
+                content = f"情境推进：{content} 请把这一阶段的观察、判断与证据自然衔接到下一步行动，并说明你们为何这样选择。"
+
+            checkpoints = step.get("checkpoints") or []
+            if isinstance(checkpoints, dict):
+                checkpoints = [checkpoints]
+            if isinstance(checkpoints, str):
+                checkpoints = [checkpoints]
+            normalized_checkpoints: List[Dict[str, Any]] = []
+            if isinstance(checkpoints, list):
+                for cp in checkpoints[:2]:
+                    if isinstance(cp, str):
+                        cp_content = cp
+                        cp_type = _infer_evidence_type(cp_content)
+                    elif isinstance(cp, dict):
+                        cp_content = (cp.get("content") or cp.get("text") or cp.get("description") or "").strip()
+                        cp_type = cp.get("evidence_type")
+                        if cp_type not in _ALLOWED_EVIDENCE_TYPES:
+                            cp_type = _infer_evidence_type(cp_content)
+                    else:
+                        cp_content = str(cp)
+                        cp_type = _infer_evidence_type(cp_content)
+                    if cp_content:
+                        normalized_checkpoints.append({"content": cp_content, "evidence_type": cp_type})
+            if not normalized_checkpoints:
+                normalized_checkpoints = [
+                    {"content": "提交本阶段关键证据（文本或文档）", "evidence_type": "text"}
+                ]
+
+            normalized_steps.append(
+                {
+                    "name": step_name,
+                    "description": description,
+                    "content": content,
+                    "checkpoints": _clean_checkpoints(description, normalized_checkpoints),
+                }
+            )
+
+        normalized_phases.append(
+            {
+                "name": phase_name,
+                "title": phase_title,
+                "order": phase_index,
+                "steps": normalized_steps,
+            }
+        )
+
+    return normalized_phases
+
+
 def _ensure_ai_defaults(
     data: AssignmentCreate,
     objectives: Dict[str, Any],
     phases: List[Dict[str, Any]],
     rubric: Dict[str, Any],
+    enforce_storyline: bool = False,
 ) -> tuple[Dict[str, Any], List[Dict[str, Any]], Dict[str, Any]]:
     if not objectives or not objectives.get("knowledge"):
         objectives = _default_objectives(data)
@@ -1770,6 +2507,11 @@ def _ensure_ai_defaults(
         phases = _get_template_phases(data)
     if not rubric or not rubric.get("dimensions"):
         rubric = _default_rubric(data.assignment_type)
+
+    if enforce_storyline:
+        objectives = _ensure_background_setting(data, objectives)
+        phases = _normalize_storyline_phases(phases)
+
     return objectives, phases, rubric
 
 

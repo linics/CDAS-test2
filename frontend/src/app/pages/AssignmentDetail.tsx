@@ -75,6 +75,61 @@ function normalizeForMatch(value: string): string {
   return (value || "").toLowerCase().replace(/\s+/g, "");
 }
 
+function splitBackgroundFromProcess(processText: string): { background: string; process: string } {
+  const raw = (processText || "").trim();
+  if (!raw) {
+    return { background: "", process: "" };
+  }
+
+  if (!raw.startsWith("背景设定：") && !raw.startsWith("背景设定:")) {
+    return { background: "", process: raw };
+  }
+
+  const body = raw.replace(/^背景设定[:：]\s*/, "").trim();
+  if (!body) {
+    return { background: "", process: "" };
+  }
+
+  const lines = body
+    .split(/\r?\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length >= 2) {
+    return {
+      background: lines[0],
+      process: lines.slice(1).join("\n").trim(),
+    };
+  }
+
+  const marker = "行动主线：";
+  if (body.includes(marker)) {
+    const [bg, rest] = body.split(marker, 2);
+    return {
+      background: bg.trim(),
+      process: `${marker}${(rest || "").trim()}`.trim(),
+    };
+  }
+
+  if (body.length > 150) {
+    const splitAt = Math.max(
+      body.lastIndexOf("。", 170),
+      body.lastIndexOf("！", 170),
+      body.lastIndexOf("？", 170),
+      body.lastIndexOf("!", 170),
+      body.lastIndexOf("?", 170),
+    );
+    if (splitAt >= 40) {
+      return {
+        background: body.slice(0, splitAt + 1).trim(),
+        process: body.slice(splitAt + 1).trim(),
+      };
+    }
+  }
+
+  return { background: body, process: "" };
+}
+
 function formatDateTime(value: string | null | undefined): string {
   if (!value) return "暂无";
   const date = new Date(value);
@@ -299,6 +354,11 @@ export function AssignmentDetail() {
     if (!assignment || !activeSubmission) return null;
     return assignment.phases_json?.[activeSubmission.phase_index] || null;
   }, [assignment, activeSubmission]);
+
+  const assignmentNarrative = useMemo(() => {
+    const processText = assignment?.objectives_json?.process || "";
+    return splitBackgroundFromProcess(processText);
+  }, [assignment]);
 
   const phaseEvidenceHints = useMemo(() => {
     if (!currentPhase || !Array.isArray(currentPhase.steps)) {
@@ -826,6 +886,15 @@ export function AssignmentDetail() {
               学段：{stageToSchoolLevel(assignment.school_stage)} · 年级：{gradeLabel(assignment.grade)} · 提交模式：
               {submissionModeLabel(assignment.submission_mode)}
             </p>
+            {assignmentNarrative.background && (
+              <div className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2">
+                <p className="text-[11px] font-semibold text-indigo-700">背景设定</p>
+                <p className="text-xs text-indigo-800 mt-1 leading-relaxed">{assignmentNarrative.background}</p>
+                {assignmentNarrative.process && (
+                  <p className="text-[11px] text-indigo-700 mt-2">任务主线：{assignmentNarrative.process}</p>
+                )}
+              </div>
+            )}
           </div>
           <Link to={backPath} className="text-sm font-semibold text-indigo-600 hover:underline">
             {backLabel}
@@ -1222,6 +1291,12 @@ export function AssignmentDetail() {
 
             {currentPhase && (
               <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                {user?.role === "student" && assignmentNarrative.background && (
+                  <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 mb-3">
+                    <p className="text-[11px] font-semibold text-indigo-700">当前任务背景</p>
+                    <p className="text-xs text-indigo-800 mt-1 leading-relaxed">{assignmentNarrative.background}</p>
+                  </div>
+                )}
                 <h2 className="text-sm font-bold text-slate-700 mb-3">
                   当前阶段：
                   {currentPhase.title || currentPhase.name || `阶段 ${(activeSubmission?.phase_index ?? 0) + 1}`}

@@ -22,6 +22,7 @@ import {
   documentsApi,
   getApiErrorMessage,
   subjectsApi,
+  type AIGenerationMeta,
   type Assignment,
   type AssignmentCreatePayload,
   type AssignmentType,
@@ -40,11 +41,18 @@ import {
 
 type EditorTab = "editor" | "history";
 type NoticeTone = "success" | "warning" | "error";
+type AIFeedbackFlow = "preview" | "lessonPlan";
+
+const AI_FEEDBACK_STEPS: Record<AIFeedbackFlow, string[]> = {
+  preview: ["整理表单上下文", "检索学科知识片段", "生成任务步骤与目标", "校验格式并回传"],
+  lessonPlan: ["解析教案与关键信息", "识别主副学科并筛选片段", "生成任务步骤与目标", "校验格式并回填表单"],
+};
 
 interface DesignerForm {
   title: string;
   topic: string;
   description: string;
+  background_setting: string;
   school_stage: SchoolStage;
   grade: number;
   main_subject_id: number;
@@ -114,11 +122,107 @@ function defaultRubricNames(type: AssignmentType): string[] {
   return ["问题意识", "方案设计", "探究过程", "结论质量", "反思能力"];
 }
 
+function generationSourceLabel(meta?: AIGenerationMeta): string {
+  if (!meta || meta.source === "ai") return "AI生成";
+  if (meta.source === "fallback") return "兜底草稿";
+  return "混合结果";
+}
+
+function splitBackgroundFromProcess(processText: string): { background: string; process: string } {
+  const raw = (processText || "").trim();
+  if (!raw) {
+    return { background: "", process: "" };
+  }
+  const prefixes = ["背景设定：", "背景设定:"];
+  const prefix = prefixes.find((item) => raw.startsWith(item));
+  if (!prefix) {
+    return { background: "", process: raw };
+  }
+
+  const body = raw.slice(prefix.length).trim();
+  if (!body) {
+    return { background: "", process: "" };
+  }
+
+  const lines = body
+    .split(/\r?\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length >= 2) {
+    return {
+      background: lines[0],
+      process: lines.slice(1).join("\n").trim(),
+    };
+  }
+
+  const marker = "行动主线：";
+  if (body.includes(marker)) {
+    const [bg, rest] = body.split(marker, 2);
+    return {
+      background: bg.trim(),
+      process: `${marker}${(rest || "").trim()}`.trim(),
+    };
+  }
+
+  if (body.length > 150) {
+    const splitAt = Math.max(
+      body.lastIndexOf("。", 170),
+      body.lastIndexOf("！", 170),
+      body.lastIndexOf("？", 170),
+      body.lastIndexOf("!", 170),
+      body.lastIndexOf("?", 170),
+    );
+    if (splitAt >= 40) {
+      return {
+        background: body.slice(0, splitAt + 1).trim(),
+        process: body.slice(splitAt + 1).trim(),
+      };
+    }
+  }
+
+  return {
+    background: body,
+    process: "",
+  };
+}
+
+function composeProcessWithBackground(background: string, process: string): string {
+  const bg = background.trim();
+  const core = process.trim();
+  if (bg && core) {
+    return `背景设定：${bg}\n${core}`;
+  }
+  if (bg) {
+    return `背景设定：${bg}`;
+  }
+  return core;
+}
+
+function pickOrKeep<T>(nextValue: T | null | undefined, currentValue: T): T {
+  if (nextValue === null || nextValue === undefined) return currentValue;
+  if (typeof nextValue === "string" && !nextValue.trim()) return currentValue;
+  return nextValue;
+}
+
+function mergeRelatedSubjectIds(nextIds: number[] | undefined, currentIds: number[], mainSubjectId: number): number[] {
+  const source = nextIds && nextIds.length ? nextIds : currentIds;
+  const seen = new Set<number>();
+  const merged: number[] = [];
+  for (const id of source) {
+    if (!id || id === mainSubjectId || seen.has(id)) continue;
+    seen.add(id);
+    merged.push(id);
+  }
+  return merged;
+}
+
 function buildInitialForm(): DesignerForm {
   return {
     title: "",
     topic: "",
     description: "",
+    background_setting: "",
     school_stage: "middle",
     grade: 8,
     main_subject_id: 0,
@@ -174,9 +278,11 @@ export function AssignmentDesigner() {
   const [referenceDocId, setReferenceDocId] = useState<number | null>(null);
   const [editingAssignmentId, setEditingAssignmentId] = useState<number | null>(null);
   const [preview, setPreview] = useState<{
+    background_setting: string;
     objectives_json: DesignerForm["objectives_json"];
     steps: LessonStepDraft[];
     rubric_dimensions: string[];
+    meta?: AIGenerationMeta;
   } | null>(null);
 
   const [loading, setLoading] = useState(true);
@@ -185,6 +291,8 @@ export function AssignmentDesigner() {
   const [previewing, setPreviewing] = useState(false);
   const [generatingFromLessonPlan, setGeneratingFromLessonPlan] = useState(false);
   const [uploadingReference, setUploadingReference] = useState(false);
+  const [aiFeedbackFlow, setAiFeedbackFlow] = useState<AIFeedbackFlow | null>(null);
+  const [aiFeedbackStep, setAiFeedbackStep] = useState(0);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [noticeTone, setNoticeTone] = useState<NoticeTone>("success");
@@ -205,6 +313,16 @@ export function AssignmentDesigner() {
     showNotice(message, "error");
   };
 
+  const beginAIFeedback = (flow: AIFeedbackFlow) => {
+    setAiFeedbackFlow(flow);
+    setAiFeedbackStep(0);
+  };
+
+  const endAIFeedback = () => {
+    setAiFeedbackFlow(null);
+    setAiFeedbackStep(0);
+  };
+
   const loadData = async () => {
     setError("");
     try {
@@ -222,6 +340,15 @@ export function AssignmentDesigner() {
       showNotice(message, "error");
     }
   };
+
+  useEffect(() => {
+    if (!aiFeedbackFlow) return;
+    const steps = AI_FEEDBACK_STEPS[aiFeedbackFlow];
+    const timer = window.setInterval(() => {
+      setAiFeedbackStep((prev) => Math.min(prev + 1, steps.length - 1));
+    }, 1300);
+    return () => window.clearInterval(timer);
+  }, [aiFeedbackFlow]);
 
   useEffect(() => {
     let mounted = true;
@@ -275,6 +402,7 @@ export function AssignmentDesigner() {
       title: target.title,
       topic: target.topic,
       description: target.description || "",
+      background_setting: splitBackgroundFromProcess(target.objectives_json?.process || "").background,
       school_stage: target.school_stage,
       grade: target.grade,
       main_subject_id: target.main_subject_id,
@@ -288,7 +416,7 @@ export function AssignmentDesigner() {
       deadline: toDateInputValue(target.deadline),
       objectives_json: {
         knowledge: target.objectives_json?.knowledge || "",
-        process: target.objectives_json?.process || "",
+        process: splitBackgroundFromProcess(target.objectives_json?.process || "").process,
         emotion: target.objectives_json?.emotion || "",
       },
       steps: phasesToLessonSteps(target.phases_json).length
@@ -368,8 +496,8 @@ export function AssignmentDesigner() {
 
   const removeStep = (stepId: string) => {
     setForm((prev) => {
-      if (prev.steps.length <= 3) {
-        showNotice("至少保留 3 个步骤", "warning");
+      if (prev.steps.length <= 2) {
+        showNotice("至少保留 2 个步骤", "warning");
         return prev;
       }
       return {
@@ -427,7 +555,7 @@ export function AssignmentDesigner() {
     if (!form.topic.trim()) return "请填写探究主题";
     if (!form.main_subject_id) return "请选择主学科";
     if (!gradeOptions.includes(form.grade)) return "当前年级与学段不匹配";
-    if (form.steps.length < 3) return "至少配置 3 个步骤";
+    if (form.steps.length < 2) return "至少配置 2 个步骤";
     return null;
   };
 
@@ -456,7 +584,7 @@ export function AssignmentDesigner() {
       deadline: form.deadline ? `${form.deadline}T23:59:59` : null,
       objectives_json: {
         knowledge: form.objectives_json.knowledge,
-        process: form.objectives_json.process,
+        process: composeProcessWithBackground(form.background_setting, form.objectives_json.process),
         emotion: form.objectives_json.emotion,
       },
       phases_json: phases,
@@ -474,26 +602,38 @@ export function AssignmentDesigner() {
     }
 
     setPreviewing(true);
+    beginAIFeedback("preview");
     setError("");
     try {
       const payload = toCreatePayload();
-      const result = await assignmentsApi.preview(payload);
+      const result = await assignmentsApi.preview(payload, { forceGenerate: true });
       const previewSteps = phasesToLessonSteps(result.phases_json);
+      const processParts = splitBackgroundFromProcess(result.objectives_json?.process || "");
       setPreview({
+        background_setting: processParts.background,
         objectives_json: {
           knowledge: result.objectives_json?.knowledge || "",
-          process: result.objectives_json?.process || "",
+          process: processParts.process,
           emotion: result.objectives_json?.emotion || "",
         },
         steps: previewSteps.length ? previewSteps : DEFAULT_STEPS.map((step) => ({ ...step })),
         rubric_dimensions:
           result.rubric_json?.dimensions?.map((item) => item.name).filter(Boolean) || defaultRubricNames(form.assignment_type),
+        meta: result.meta,
       });
-      showNotice("AI 预览已生成，可应用到当前设计");
+      if (result.meta?.source === "fallback") {
+        const reason = result.meta.fallback_reason && result.meta.fallback_reason !== "none"
+          ? `（原因：${result.meta.fallback_reason}）`
+          : "";
+        showNotice(`本次返回为兜底草稿，建议再次点击 AI 预览重试${reason}`, "warning");
+      } else {
+        showNotice("AI 预览已生成，可应用到当前设计");
+      }
     } catch (err) {
       handleActionError(err, "AI 预览生成失败");
     } finally {
       setPreviewing(false);
+      endAIFeedback();
     }
   };
 
@@ -504,6 +644,7 @@ export function AssignmentDesigner() {
     }
 
     setGeneratingFromLessonPlan(true);
+    beginAIFeedback("lessonPlan");
     setError("");
     try {
       const generated = await assignmentsApi.fromLessonPlan({
@@ -521,33 +662,47 @@ export function AssignmentDesigner() {
       const generatedSteps = phasesToLessonSteps(generated.phases_json);
       const generatedRubric =
         generated.rubric_json?.dimensions?.map((item) => item.name).filter(Boolean) || defaultRubricNames(generated.assignment_type);
+      const processParts = splitBackgroundFromProcess(generated.objectives_json?.process || "");
 
       setForm((prev) => ({
+        // 核心规则：AI 能补全就补全；未返回时保持用户当前填写不变。
         ...prev,
-        title: generated.title || prev.title,
-        topic: generated.topic || prev.topic,
-        description: generated.description || prev.description,
-        school_stage: generated.school_stage,
-        grade: generated.grade,
-        main_subject_id: generated.main_subject_id,
-        related_subject_ids: generated.related_subject_ids || [],
-        assignment_type: generated.assignment_type,
-        practical_subtype: generated.practical_subtype || prev.practical_subtype,
-        inquiry_subtype: generated.inquiry_subtype || prev.inquiry_subtype,
-        inquiry_depth: generated.inquiry_depth,
-        submission_mode: generated.submission_mode,
-        duration_weeks: generated.duration_weeks,
+        title: pickOrKeep(generated.title, prev.title),
+        topic: pickOrKeep(generated.topic, prev.topic),
+        description: pickOrKeep(generated.description, prev.description),
+        school_stage: pickOrKeep(generated.school_stage, prev.school_stage),
+        grade: pickOrKeep(generated.grade, prev.grade),
+        main_subject_id: pickOrKeep(generated.main_subject_id, prev.main_subject_id),
+        related_subject_ids: mergeRelatedSubjectIds(
+          generated.related_subject_ids,
+          prev.related_subject_ids,
+          pickOrKeep(generated.main_subject_id, prev.main_subject_id),
+        ),
+        assignment_type: pickOrKeep(generated.assignment_type, prev.assignment_type),
+        practical_subtype: pickOrKeep(generated.practical_subtype, prev.practical_subtype),
+        inquiry_subtype: pickOrKeep(generated.inquiry_subtype, prev.inquiry_subtype),
+        inquiry_depth: pickOrKeep(generated.inquiry_depth, prev.inquiry_depth),
+        submission_mode: pickOrKeep(generated.submission_mode, prev.submission_mode),
+        duration_weeks: pickOrKeep(generated.duration_weeks, prev.duration_weeks),
+        background_setting: pickOrKeep(processParts.background, prev.background_setting),
         objectives_json: {
-          knowledge: generated.objectives_json?.knowledge || "",
-          process: generated.objectives_json?.process || "",
-          emotion: generated.objectives_json?.emotion || "",
+          knowledge: pickOrKeep(generated.objectives_json?.knowledge, prev.objectives_json.knowledge),
+          process: pickOrKeep(processParts.process, prev.objectives_json.process),
+          emotion: pickOrKeep(generated.objectives_json?.emotion, prev.objectives_json.emotion),
         },
         steps: generatedSteps.length ? generatedSteps : prev.steps,
         rubric_dimensions: generatedRubric,
       }));
       setReferenceDocId(generated.document_id);
       setPreview(null);
-      showNotice("已根据教案生成作业草稿，请检查后保存或发布");
+      if (generated.meta?.source === "fallback") {
+        const reason = generated.meta.fallback_reason && generated.meta.fallback_reason !== "none"
+          ? `（原因：${generated.meta.fallback_reason}）`
+          : "";
+        showNotice(`教案草稿已生成，但当前为兜底结果，建议重试以获取 AI 版本${reason}`, "warning");
+      } else {
+        showNotice("已根据教案生成作业草稿，请检查后保存或发布");
+      }
     } catch (err) {
       const raw = getApiErrorMessage(err, "教案生成草稿失败");
       const message = raw.includes("超时")
@@ -556,6 +711,7 @@ export function AssignmentDesigner() {
       showNotice(message, "error");
     } finally {
       setGeneratingFromLessonPlan(false);
+      endAIFeedback();
     }
   };
 
@@ -563,6 +719,7 @@ export function AssignmentDesigner() {
     if (!preview) return;
     setForm((prev) => ({
       ...prev,
+      background_setting: preview.background_setting,
       objectives_json: preview.objectives_json,
       steps: preview.steps,
       rubric_dimensions: preview.rubric_dimensions,
@@ -588,7 +745,10 @@ export function AssignmentDesigner() {
           description: form.description.trim(),
           document_id: referenceDocId,
           deadline: form.deadline ? `${form.deadline}T23:59:59` : null,
-          objectives_json: form.objectives_json,
+          objectives_json: {
+            ...form.objectives_json,
+            process: composeProcessWithBackground(form.background_setting, form.objectives_json.process),
+          },
           phases_json: lessonStepsToPhases(form.steps),
           rubric_json: {
             dimensions: form.rubric_dimensions.map((name) => ({ name })).filter((item) => item.name.trim()),
@@ -630,7 +790,10 @@ export function AssignmentDesigner() {
           description: form.description.trim(),
           document_id: referenceDocId,
           deadline: form.deadline ? `${form.deadline}T23:59:59` : null,
-          objectives_json: form.objectives_json,
+          objectives_json: {
+            ...form.objectives_json,
+            process: composeProcessWithBackground(form.background_setting, form.objectives_json.process),
+          },
           phases_json: lessonStepsToPhases(form.steps),
           rubric_json: {
             dimensions: form.rubric_dimensions.map((name) => ({ name })).filter((item) => item.name.trim()),
@@ -1138,6 +1301,19 @@ export function AssignmentDesigner() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="md:col-span-3 rounded-2xl border border-indigo-100 bg-indigo-50 p-4">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <p className="text-sm font-semibold text-indigo-800">背景设定（单独展示给学生）</p>
+                  <span className="text-[11px] text-indigo-700">建议 80-180 字，贴近学段语感</span>
+                </div>
+                <textarea
+                  value={form.background_setting}
+                  onChange={(e) => updateForm("background_setting", e.target.value)}
+                  rows={4}
+                  placeholder="例如：背景设定：你们是校园生态小队，本周要为学校食堂与教学楼之间的垃圾分类盲区设计一套可执行改进方案。"
+                  className="w-full px-4 py-3 rounded-xl border border-indigo-200 bg-white resize-none"
+                />
+              </div>
               <textarea
                 value={form.objectives_json.knowledge}
                 onChange={(e) =>
@@ -1159,7 +1335,7 @@ export function AssignmentDesigner() {
                   }))
                 }
                 rows={3}
-                placeholder="过程与方法目标"
+                placeholder="过程与方法目标（不含背景设定）"
                 className="px-4 py-3 rounded-xl border border-slate-200 resize-none"
               />
               <textarea
@@ -1322,7 +1498,19 @@ export function AssignmentDesigner() {
               <h3 className="font-bold text-indigo-800 flex items-center gap-2">
                 <Sparkles className="w-4 h-4" /> AI 预览结果
               </h3>
+              {preview.meta && (
+                <p className="text-xs text-indigo-700">
+                  来源：{generationSourceLabel(preview.meta)} · {preview.meta.prompt_id}@{preview.meta.prompt_version}
+                  {preview.meta.used_rag ? " · 含RAG上下文" : ""}
+                </p>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                {preview.background_setting && (
+                  <div className="md:col-span-3 bg-white rounded-xl border border-indigo-100 p-3">
+                    <p className="text-xs text-indigo-700 mb-1">背景设定</p>
+                    <p>{preview.background_setting}</p>
+                  </div>
+                )}
                 <div className="bg-white rounded-xl border border-indigo-100 p-3">
                   <p className="text-xs text-slate-500 mb-1">知识与技能</p>
                   <p>{preview.objectives_json.knowledge || "-"}</p>
@@ -1348,9 +1536,32 @@ export function AssignmentDesigner() {
         </section>
       )}
 
+      {aiFeedbackFlow && (
+        <div className="fixed bottom-28 right-6 z-40 w-[28rem] max-w-[calc(100vw-2rem)] rounded-3xl border border-indigo-100 bg-white shadow-2xl p-5">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <LoaderCircle className="w-5 h-5 animate-spin" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-slate-900">AI 正在生成，请稍候</p>
+              <p className="text-sm text-slate-600 mt-1">
+                当前阶段：{AI_FEEDBACK_STEPS[aiFeedbackFlow][aiFeedbackStep]}
+              </p>
+              <div className="mt-3 space-y-1.5">
+                {AI_FEEDBACK_STEPS[aiFeedbackFlow].map((step, index) => (
+                  <p key={step} className={`text-xs ${index <= aiFeedbackStep ? "text-indigo-700" : "text-slate-400"}`}>
+                    {index <= aiFeedbackStep ? "●" : "○"} {step}
+                  </p>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {notice && (
         <div
-          className={`fixed bottom-6 right-6 z-40 max-w-sm rounded-2xl border bg-white shadow-xl p-4 ${
+          className={`fixed bottom-6 right-6 z-40 w-[26rem] max-w-[calc(100vw-2rem)] rounded-3xl border bg-white shadow-2xl p-5 ${
             noticeTone === "error"
               ? "border-red-100"
               : noticeTone === "warning"
@@ -1374,7 +1585,7 @@ export function AssignmentDesigner() {
               <p className="text-sm font-semibold text-slate-800">
                 {noticeTone === "error" ? "操作失败" : noticeTone === "warning" ? "请注意" : "操作反馈"}
               </p>
-              <p className="text-xs text-slate-600 mt-1 leading-relaxed">{notice}</p>
+              <p className="text-sm text-slate-600 mt-1 leading-relaxed">{notice}</p>
             </div>
             <button
               onClick={dismissNotice}

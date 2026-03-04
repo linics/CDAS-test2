@@ -261,6 +261,14 @@ export interface AssignmentRubricDimension {
   weight?: number;
 }
 
+export interface AIGenerationMeta {
+  source: "ai" | "fallback" | "manual_merge";
+  prompt_id: string;
+  prompt_version: string;
+  used_rag: boolean;
+  fallback_reason: string;
+}
+
 export interface Assignment {
   id: number;
   title: string;
@@ -329,6 +337,7 @@ export interface AssignmentPreviewResponse {
   objectives_json: Record<string, string>;
   phases_json: AssignmentPhase[];
   rubric_json: { dimensions?: AssignmentRubricDimension[] };
+  meta?: AIGenerationMeta;
 }
 
 export interface AssignmentLessonPlanDraftRequest {
@@ -362,6 +371,7 @@ export interface AssignmentLessonPlanDraftResponse {
   phases_json: AssignmentPhase[];
   rubric_json: { dimensions?: AssignmentRubricDimension[] };
   source_summary: string;
+  meta?: AIGenerationMeta;
 }
 
 export interface AssignmentGroupMember {
@@ -596,11 +606,16 @@ export const classesApi = {
 };
 
 export const assignmentsApi = {
-  preview: (payload: AssignmentCreatePayload) =>
-    request<AssignmentPreviewResponse>("/api/v2/assignments/preview", {
+  preview: (payload: AssignmentCreatePayload, options?: { forceGenerate?: boolean }) =>
+    request<AssignmentPreviewResponse>(
+      withQuery("/api/v2/assignments/preview", {
+        force_generate: options?.forceGenerate ?? true,
+      }),
+      {
       method: "POST",
       body: payload,
-    }),
+      },
+    ),
 
   fromLessonPlan: (payload: AssignmentLessonPlanDraftRequest) =>
     request<AssignmentLessonPlanDraftResponse>("/api/v2/assignments/from-lesson-plan", {
