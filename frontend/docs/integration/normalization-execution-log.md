@@ -32,7 +32,7 @@
 
 - Completed:
   - Added backend unified quality runner script:
-    - `D:\githubfiles\CDAS-test2\CDAS-test2\scripts\check_backend_quality.py`
+    - `<repo-root>/scripts/check_backend_quality.py`
   - Added backend quality baseline matrix document:
     - `docs/integration/backend-quality-baseline.md`
   - Updated backend README with normalization quality commands.
@@ -43,8 +43,8 @@
     - current baseline emits deprecation warnings (FastAPI lifespan, Pydantic class Config, PyPDF2 deprecation), to be tracked under future technical-debt cleanup.
 - Files:
   - `docs/integration/backend-quality-baseline.md`
-  - `D:\githubfiles\CDAS-test2\CDAS-test2\scripts\check_backend_quality.py`
-  - `D:\githubfiles\CDAS-test2\CDAS-test2\README.md`
+  - `<repo-root>/scripts/check_backend_quality.py`
+  - `<repo-root>/README.md`
 
 ## Day 4 - API Contract Governance (Completed)
 
@@ -71,8 +71,8 @@
     - `npm run check:api-e2e` PASS
   - Cleaned integration artifacts after regression run.
 - Files:
-  - `D:\githubfiles\CDAS-test2\CDAS-test2\README.md`
-  - `D:\githubfiles\CDAS-test2\CDAS-test2\.env.example`
+  - `<repo-root>/README.md`
+  - `<repo-root>/.env.example`
   - `.env.example`
   - `README.md`
   - `docs/integration/onboarding-15min.md`

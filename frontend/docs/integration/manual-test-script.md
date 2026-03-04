@@ -7,7 +7,7 @@ Release-gate command matrix reference:
 ## 1) Environment Prep
 
 - Backend: `http://127.0.0.1:8000` is running
-- Frontend: run from `D:\githubfiles\CDAS-test2\CDAS-test2\frontend`
+- Frontend: run from `frontend`
   - `npm install`
   - `npm run dev`
 - Browser opens `http://127.0.0.1:5173`

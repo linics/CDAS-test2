@@ -2,8 +2,8 @@
 
 ## Scope
 
-- Backend repo: `D:\githubfiles\CDAS-test2\CDAS-test2`
-- Frontend repo (in-repo): `D:\githubfiles\CDAS-test2\CDAS-test2\frontend`
+- Backend repo: `<repo-root>`
+- Frontend repo (in-repo): `frontend`
 - Applies to local dev, integration verification, and pre-release checks.
 
 ## Safety Rules

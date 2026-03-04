@@ -6,9 +6,9 @@ Stabilize engineering standards and delivery process without adding new product 
 
 ## Scope and Baseline
 
-- Frontend canonical repo: `D:\githubfiles\CDAS-test2\CDAS-test2\frontend`
-- Backend canonical repo: `D:\githubfiles\CDAS-test2\CDAS-test2`
-- Legacy standalone frontend (reference only, not active development): `D:\githubfiles\cdas-frontend-main`
+- Frontend canonical repo: `frontend`
+- Backend canonical repo: `<repo-root>`
+- Legacy standalone frontend (reference only, not active development): `(archived legacy frontend)`
 - Business feature scope is frozen during this plan.
 
 ## Execution Window

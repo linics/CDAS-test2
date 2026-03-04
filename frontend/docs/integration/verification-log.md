@@ -2,9 +2,9 @@
 
 ## Environment
 
-- Frontend repo: `D:\githubfiles\CDAS-test2\CDAS-test2\frontend`
+- Frontend repo: `frontend`
 - Backend target: `http://127.0.0.1:8000`
-- Backend source repo: `D:\githubfiles\CDAS-test2\CDAS-test2`
+- Backend source repo: `<repo-root>`
 
 ## Checks Executed
 
@@ -27,7 +27,7 @@
      - knowledge base upload/list/delete API path
 
 3. Existing document index rebuild
-   - Command: `D:\githubfiles\CDAS-test2\CDAS-test2\.venv\Scripts\python.exe scripts/reindex_documents.py`
+   - Command: `.venv/Scripts/python scripts/reindex_documents.py`
    - Result: PASS (`total=1 ready=1 failed=0`)
 
 4. Core workflow re-check after class/archive integration

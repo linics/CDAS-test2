@@ -6,8 +6,8 @@ Define minimum merge/release gates for canonical frontend and backend repositori
 
 ## Canonical Repositories
 
-- Frontend: `D:\githubfiles\CDAS-test2\CDAS-test2\frontend`
-- Backend: `D:\githubfiles\CDAS-test2\CDAS-test2`
+- Frontend: `frontend`
+- Backend: `<repo-root>`
 
 ## Gate Principles
 

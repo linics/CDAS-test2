@@ -7,7 +7,7 @@ Lock a reviewable commit boundary in the mixed mono-repo working tree and preven
 ## Snapshot
 
 - Date: 2026-03-02
-- Workspace: `D:\githubfiles\CDAS-test2\CDAS-test2`
+- Workspace: `<repo-root>`
 - Branch: `main`
 - Working tree state: mixed changes (feature integration + hardening + docs + runtime artifact untracking)
 

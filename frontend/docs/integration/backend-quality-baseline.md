@@ -2,7 +2,7 @@
 
 ## Canonical Backend Repo
 
-- `D:\githubfiles\CDAS-test2\CDAS-test2`
+- `<repo-root>`
 
 ## Baseline Command Matrix
 

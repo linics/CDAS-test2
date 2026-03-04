@@ -3,8 +3,8 @@
 ## Scope
 
 - Window: 2-week light normalization plan
-- Frontend canonical: `D:\githubfiles\CDAS-test2\CDAS-test2\frontend`
-- Backend canonical: `D:\githubfiles\CDAS-test2\CDAS-test2`
+- Frontend canonical: `frontend`
+- Backend canonical: `<repo-root>`
 
 ## Delivered Outcomes
 

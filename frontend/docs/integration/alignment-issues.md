@@ -91,19 +91,19 @@
 - ISSUE-006: 已处理
   - 执行选择性清理（仅删除联调残留）
   - 清理结果：`test_users=0`、`integration_assignments=0`
-  - 清理脚本：`D:\githubfiles\CDAS-test2\CDAS-test2\scripts\clean_integration_artifacts.py`
+  - 清理脚本：`<repo-root>/scripts/clean_integration_artifacts.py`
 
 - ISSUE-003: 已处理
   - 已恢复并重建课标知识库基础数据（15 份），并标记为 `source=system`
   - 前端改为展示系统知识库 chunks 概览，不再逐条展示内置文件
-  - 导入脚本：`D:\githubfiles\CDAS-test2\CDAS-test2\scripts\seed_knowledge_base.py`
+  - 导入脚本：`<repo-root>/scripts/seed_knowledge_base.py`
   - 页面：`src/app/pages/KnowledgeBase.tsx`
 
 - ISSUE-001: 已处理（后端强校验 + 前端兜底）
   - 登录时若“身份切换选择”和账号真实角色不一致，后端直接拒绝登录并返回提示
   - 前端保留兜底校验，防止进入错误端
   - 代码：`src/app/pages/Auth.tsx`
-  - 代码：`D:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\auth.py`
+  - 代码：`<repo-root>/app/api/v2/auth.py`
 
 - ISSUE-002: 已处理（本轮）
   - 已完成：步骤编辑层次优化、评价维度改为自动策略、顶部反馈改为可关闭浮动气泡
@@ -111,8 +111,8 @@
   - 已完成：后端作业 API 支持 `document_id`，预览/创建/更新均可绑定参考文档
   - 代码：`src/app/pages/AssignmentDesigner.tsx`
   - 代码：`src/app/lib/api.ts`
-  - 代码：`D:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\assignments.py`
-  - 代码：`D:\githubfiles\CDAS-test2\CDAS-test2\app\services\inventory.py`
+  - 代码：`<repo-root>/app/api/v2/assignments.py`
+  - 代码：`<repo-root>/app/services/inventory.py`
 
 - ISSUE-005: 已处理（数据基线）
   - 学生端异常的 `Integration Assignment-*` 测试作业已清理
@@ -123,7 +123,7 @@
   - 保持与知识库不冲突：仍复用同一文档入库链路，仅新增草稿生成入口。
   - 代码：`src/app/pages/AssignmentDesigner.tsx`
   - 代码：`src/app/lib/api.ts`
-  - 代码：`D:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\assignments.py`
+  - 代码：`<repo-root>/app/api/v2/assignments.py`
 
 - ISSUE-008: 已处理（本轮）
   - 已排查当前全部 AI 提示词入口：
@@ -137,8 +137,8 @@
   - 已修复反馈体验：作业设计页错误信息统一进入可关闭的右下气泡（含超时提示）。
   - 代码：`src/app/pages/AssignmentDesigner.tsx`
   - 代码：`src/app/lib/api.ts`
-  - 代码：`D:\githubfiles\CDAS-test2\CDAS-test2\app\api\v2\assignments.py`
-  - 代码：`D:\githubfiles\CDAS-test2\CDAS-test2\app\services\ai.py`
+  - 代码：`<repo-root>/app/api/v2/assignments.py`
+  - 代码：`<repo-root>/app/services/ai.py`
 
 - ISSUE-009: 进行中（本轮启动）
   - 已新增详细约束文档：`docs/integration/issue-009-prompt-ui-spec.md`

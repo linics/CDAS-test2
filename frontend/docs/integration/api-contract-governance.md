@@ -6,8 +6,8 @@ Define contract rules for backend APIs consumed by `CDAS-test2/CDAS-test2/fronte
 
 ## Scope
 
-- Backend runtime: `D:\githubfiles\CDAS-test2\CDAS-test2`
-- Frontend consumer: `D:\githubfiles\CDAS-test2\CDAS-test2\frontend`
+- Backend runtime: `<repo-root>`
+- Frontend consumer: `frontend`
 - Governed API namespace: `/api/v2/*`
 
 ## Stability Policy

@@ -2,8 +2,8 @@
 
 ## Scope
 
-- Frontend: `D:\githubfiles\CDAS-test2\CDAS-test2\frontend`
-- Backend: `D:\githubfiles\CDAS-test2\CDAS-test2`
+- Frontend: `frontend`
+- Backend: `<repo-root>`
 - Runtime baseline: backend `http://127.0.0.1:8000`, frontend `http://127.0.0.1:5173`
 
 ## Required Command Matrix

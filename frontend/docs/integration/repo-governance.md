@@ -2,12 +2,12 @@
 
 ## Canonical Repositories
 
-- Frontend development and release source of truth: `D:\githubfiles\CDAS-test2\CDAS-test2\frontend`
-- Backend development and release source of truth: `D:\githubfiles\CDAS-test2\CDAS-test2`
+- Frontend development and release source of truth: `frontend`
+- Backend development and release source of truth: `<repo-root>`
 
 ## Legacy Directory Policy
 
-- Legacy standalone frontend path: `D:\githubfiles\cdas-frontend-main`
+- Legacy standalone frontend path: `(archived legacy frontend)`
 - This directory is retained for historical reference only.
 - Do not introduce new feature development in the legacy standalone frontend directory.
 - Bug fixes or alignment work should be implemented in `CDAS-test2\CDAS-test2\frontend`.
