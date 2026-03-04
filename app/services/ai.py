@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from pathlib import Path
 import re
 from typing import Callable, List, Sequence, TypeVar
 
@@ -11,7 +12,7 @@ import requests
 
 from pydantic import BaseModel
 
-from app.config import Settings
+from app.config import Settings, get_settings
 
 
 T = TypeVar("T", bound=BaseModel)
@@ -288,10 +289,17 @@ def _log_ai_error(stage: str, message: str, content: str | None = None) -> None:
         snippet = ""
         if content:
             snippet = content[:2000]
-        with open("storage/ai_debug.log", "a", encoding="utf-8") as handle:
+        log_path = _ai_debug_log_path()
+        with log_path.open("a", encoding="utf-8") as handle:
             handle.write(f"[{stage}] {message}\n")
             if snippet:
                 handle.write(f"{snippet}\n")
             handle.write("---\n")
     except Exception:
         pass
+
+
+def _ai_debug_log_path() -> Path:
+    settings = get_settings()
+    settings.ai_logs_dir.mkdir(parents=True, exist_ok=True)
+    return settings.ai_logs_dir / "ai_debug.log"

@@ -1764,7 +1764,10 @@ def _normalize_ai_assignment_output(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 def _log_ai_generation_error(error: Exception, payload: Dict[str, Any] | None = None) -> None:
     try:
-        with open("storage/ai_debug.log", "a", encoding="utf-8") as handle:
+        settings = get_settings()
+        log_path = settings.ai_logs_dir / "ai_debug.log"
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with log_path.open("a", encoding="utf-8") as handle:
             handle.write(f"[assignments] {type(error).__name__}: {error}\n---\n")
             if payload is not None:
                 handle.write(f"{payload}\n---\n")
@@ -1774,7 +1777,10 @@ def _log_ai_generation_error(error: Exception, payload: Dict[str, Any] | None = 
 
 def _log_ai_debug(message: str) -> None:
     try:
-        with open("storage/ai_debug.log", "a", encoding="utf-8") as handle:
+        settings = get_settings()
+        log_path = settings.ai_logs_dir / "ai_debug.log"
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with log_path.open("a", encoding="utf-8") as handle:
             handle.write(f"[debug] {message}\n---\n")
     except Exception:
         pass

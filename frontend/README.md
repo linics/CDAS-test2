@@ -4,9 +4,8 @@
 
 This directory is the canonical frontend source for CDAS integration work.
 
-- Canonical frontend: `D:\githubfiles\CDAS-test2\CDAS-test2\frontend`
-- Canonical backend: `D:\githubfiles\CDAS-test2\CDAS-test2`
-- Legacy standalone frontend (reference only): `D:\githubfiles\cdas-frontend-main`
+- Frontend root: `frontend/`
+- Backend root: repository root (`app/`, `scripts/`)
 
 ## Local Development
 
@@ -19,7 +18,13 @@ npm install
 Optional environment setup:
 
 ```bash
-copy .env.example .env
+cp .env.example .env
+```
+
+Windows PowerShell alternative:
+
+```powershell
+Copy-Item .env.example .env
 ```
 
 ### 2) Start frontend
@@ -30,13 +35,19 @@ npm run dev:local
 
 Frontend URL: `http://127.0.0.1:5173`
 
+若前后端跨域部署，请在 `frontend/.env` 中设置：
+
+```bash
+VITE_API_BASE_URL=https://<your-backend-domain>
+```
+
 ### 3) Ensure backend is running
 
 Backend URL: `http://127.0.0.1:8000`
 
 Backend `.env` template is available at:
 
-- `D:\githubfiles\CDAS-test2\CDAS-test2\.env.example`
+- `.env.example` (repo root)
 
 ## Quality Baseline Commands
 

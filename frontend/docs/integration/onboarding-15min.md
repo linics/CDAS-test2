@@ -2,17 +2,20 @@
 
 ## Canonical Repositories
 
-- Frontend: `D:\githubfiles\CDAS-test2\CDAS-test2\frontend`
-- Backend: `D:\githubfiles\CDAS-test2\CDAS-test2`
+- Frontend: `frontend/`
+- Backend: repository root
 
 ## 1) Backend setup (about 5 min)
 
 ```bash
-cd D:\githubfiles\CDAS-test2\CDAS-test2
+cd <repo-root>
 python -m venv .venv
-.venv\Scripts\activate
+# Linux/macOS
+source .venv/bin/activate
+# Windows PowerShell
+# .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-copy .env.example .env
+cp .env.example .env
 ```
 
 Start backend:
@@ -28,9 +31,9 @@ Health check:
 ## 2) Frontend setup (about 5 min)
 
 ```bash
-cd D:\githubfiles\CDAS-test2\CDAS-test2\frontend
+cd <repo-root>/frontend
 npm install
-copy .env.example .env
+cp .env.example .env
 npm run dev:local
 ```
 
@@ -60,5 +63,4 @@ python scripts/clean_integration_artifacts.py
 
 ## Notes
 
-- Legacy standalone frontend path `D:\githubfiles\cdas-frontend-main` is reference-only.
 - Primary integration docs are in `frontend/docs/integration/`.

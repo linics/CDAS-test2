@@ -22,7 +22,10 @@ CDAS 是一套面向 K12 场景的跨学科作业系统，支持教师端作业�
 
 ```bash
 python -m venv .venv
-.\.venv\Scripts\activate
+# Linux/macOS
+source .venv/bin/activate
+# Windows PowerShell
+# .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
@@ -70,6 +73,14 @@ npm run check:build
 cd frontend
 npm run check:api-e2e
 ```
+
+## 部署注意事项
+
+- 前端静态部署请配置 SPA 路由回退（所有非静态资源请求回退到 `index.html`），避免刷新子路由 404。
+- 前端生产环境建议设置 `VITE_API_BASE_URL` 指向后端域名（同域部署可留空）。
+- 后端跨域可通过 `.env` 配置：
+  - `CDAS_CORS_ALLOWED_ORIGINS`（逗号分隔）
+  - `CDAS_CORS_ALLOW_ORIGIN_REGEX`（可选）
 
 ## 环境变量（关键项）
 

@@ -2,6 +2,7 @@
 
 from contextlib import asynccontextmanager
 import logging
+from pathlib import Path
 
 from fastapi import FastAPI
 from sqlalchemy.exc import OperationalError
@@ -17,6 +18,7 @@ def create_app() -> FastAPI:
     """应用工厂，便于后续测试与拓展路由。"""
 
     logger = logging.getLogger("cdas.api")
+    settings = get_settings()
 
     def init_models() -> None:
         """启动时确保表存在并初始化学科数据。"""
@@ -48,9 +50,11 @@ def create_app() -> FastAPI:
             # 兜底保证模型中新增但尚未迁移覆盖的表被创建。
             Base.metadata.create_all(bind=engine)
         try:
-            with open("storage/ai_status.log", "a", encoding="utf-8") as handle:
+            log_path: Path = settings.ai_logs_dir / "ai_status.log"
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            with log_path.open("a", encoding="utf-8") as handle:
                 handle.write(
-                    f"deepseek_api_key_set={bool(get_settings().deepseek_api_key)}\n"
+                    f"deepseek_api_key_set={bool(settings.deepseek_api_key)}\n"
                 )
         except Exception:
             pass
@@ -85,8 +89,8 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-        allow_origin_regex=r"^http://(localhost|127\.0\.0\.1):\d+$",
+        allow_origins=settings.cors_origins_list,
+        allow_origin_regex=settings.cors_allow_origin_regex or None,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
