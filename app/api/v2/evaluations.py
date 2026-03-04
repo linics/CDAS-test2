@@ -21,6 +21,7 @@ from app.models import (
     SubmissionStatus,
 )
 from app.api.v2.auth import get_current_user, require_teacher
+from app.prompts.evaluation_prompts import EvaluationPromptContext, build_evaluation_prompt
 from app.services.ai import DeepSeekJSONClient
 
 router = APIRouter()
@@ -455,44 +456,20 @@ async def ai_assist_evaluation(
     attachments = submission.attachments_json or []
     checkpoints = submission.checkpoints_json or {}
 
-    system_prompt = (
-        "You are a rigorous K12 teacher evaluator. "
-        "Use only the provided submission evidence. "
-        "Do not fabricate facts. "
-        "Return JSON only."
-    )
-
     rubric_text = json.dumps({"dimensions": rubric_dims}, ensure_ascii=False)
     objectives_text = json.dumps(assignment.objectives_json or {}, ensure_ascii=False)
-
-    user_prompt = (
-        "Assignment context:\n"
-        f"- Title: {assignment.title}\n"
-        f"- Topic: {assignment.topic}\n"
-        f"- Description: {assignment.description or ''}\n"
-        f"- Objectives JSON: {objectives_text}\n\n"
-        f"Current phase tasks:\n{phase_context}\n\n"
-        "Submission evidence:\n"
-        f"- text: {submission_text}\n"
-        f"- attachments: {attachments}\n"
-        f"- checkpoints: {checkpoints}\n\n"
-        "Rubric (dimensions with levels):\n"
-        f"{rubric_text}\n\n"
-        "Scoring constraints:\n"
-        "1) Score each rubric dimension strictly from 1-4.\n"
-        "2) dimension_scores keys must exactly match rubric dimension names.\n"
-        "3) If evidence is insufficient, lower the score and explain why.\n"
-        "4) evidence must include short quotes from submission text or explicit attachment/checkpoint references.\n"
-        "5) feedback should have three concise parts: strengths, gaps, next focus.\n"
-        "6) action_items should be 2-3 concrete next-step suggestions for the student.\n\n"
-        "Return JSON with fields:\n"
-        "- suggested_score (1-4, average)\n"
-        "- suggested_level (excellent/good/pass/improve)\n"
-        "- dimension_scores (object)\n"
-        "- feedback (single string)\n"
-        "- evidence (list of {source, quote, reason})\n"
-        "- action_items (list of strings)\n"
+    prompt_context = EvaluationPromptContext(
+        assignment_title=assignment.title,
+        assignment_topic=assignment.topic,
+        assignment_description=assignment.description or "",
+        objectives_json=objectives_text,
+        phase_context=phase_context,
+        submission_text=submission_text,
+        attachments=json.dumps(attachments, ensure_ascii=False),
+        checkpoints=json.dumps(checkpoints, ensure_ascii=False),
+        rubric_text=rubric_text,
     )
+    system_prompt, user_prompt = build_evaluation_prompt(prompt_context)
 
     settings = get_settings()
     client = DeepSeekJSONClient(settings, temperature=0.2, max_output_tokens=1200)

@@ -31,6 +31,12 @@ from app.models import (
     Subject,
 )
 from app.api.v2.auth import get_current_user, require_teacher
+from app.prompts.assignment_prompts import (
+    AssignmentPreviewPromptContext,
+    LessonPlanPromptContext,
+    build_assignment_preview_prompt,
+    build_lesson_plan_prompt,
+)
 from app.services.ai import DeepSeekJSONClient
 from app.services.inventory import InventoryService
 from app.utils.text_processing import parse_document
@@ -1339,53 +1345,28 @@ def _generate_ai_content(data: AssignmentCreate) -> tuple[Dict[str, Any], List[D
         InquiryDepth.DEEP: "Deep depth: provide goal-level guidance and emphasize quality criteria.",
     }.get(data.inquiry_depth, "Intermediate depth: provide framework plus key prompts.")
 
-    system_prompt = (
-        "You are an expert K12 assignment designer. "
-        "Return exactly one JSON object with keys: objectives, phases, rubric. "
-        "objectives must include knowledge/process/emotion. "
-        "phases must include name/order/steps. "
-        "Use phase titles to express scenario progression and continuity. "
-        "Each step must include name/description/checkpoints. "
-        "step.description must act as learning scaffold, not task name repetition. "
-        "Each checkpoint must include content/evidence_type where evidence_type is one of "
-        "text/document/image/video/confirm/link. "
-        "Keep checkpoints actionable and not duplicate the step description. "
-        "Avoid formulaic repetition across phases and steps."
-    )
-
     template_json = json.dumps(template_phases, ensure_ascii=False, indent=2)
-
-    user_prompt = (
-        "Generate a structured assignment draft from the following teaching context.\n"
-        f"- Title: {data.title}\n"
-        f"- Topic: {data.topic}\n"
-        f"- Description: {data.description or 'none'}\n"
-        f"- School stage: {stage_map.get(data.school_stage, data.school_stage)}\n"
-        f"- Grade: {data.grade}\n"
-        f"- Assignment type: {type_map.get(data.assignment_type, data.assignment_type)}\n"
-        f"- Subtype: {subtype_label}\n"
-        f"- Main subject: {main_subject_label}\n"
-        f"- Related subjects: {related_subjects_label}\n"
-        f"- Reference document: {reference_document_label or 'none'}\n"
-        f"- Type guidance: {type_guidance or 'none'}\n"
-        f"- Subtype guidance: {subtype_guidance or 'none'}\n"
-        f"- Inquiry depth: {depth_map.get(data.inquiry_depth, data.inquiry_depth)}\n"
-        f"- Submission mode: {submission_map.get(data.submission_mode, data.submission_mode)}\n"
-        f"- Duration weeks: {data.duration_weeks}\n"
-        f"- Depth guidance: {depth_guidance}\n\n"
-        "Output requirements:\n"
-        "1) objectives should be specific and concise.\n"
-        "2) phases should remain coherent with increasing progression, and each phase title should show story continuity.\n"
-        "3) each step should include 1-2 checkpoints only.\n"
-        "4) rubric should have 5-6 dimensions with level descriptions (excellent/good/pass/improve).\n"
-        "5) write step descriptions as scaffolding prompts with context, hints, and expected thinking path.\n"
-        "6) avoid repeated sentence templates such as identical openings for all steps.\n"
-        "5) preserve phase structure compatibility with this template (you may enrich descriptions/checkpoints):\n"
-        f"{template_json}\n"
+    prompt_context = AssignmentPreviewPromptContext(
+        title=data.title,
+        topic=data.topic,
+        description=data.description or "none",
+        school_stage=stage_map.get(data.school_stage, data.school_stage),
+        grade=data.grade,
+        assignment_type=type_map.get(data.assignment_type, data.assignment_type),
+        subtype=subtype_label,
+        main_subject=main_subject_label,
+        related_subjects=related_subjects_label,
+        reference_document=reference_document_label or "none",
+        type_guidance=type_guidance or "none",
+        subtype_guidance=subtype_guidance or "none",
+        inquiry_depth=depth_map.get(data.inquiry_depth, data.inquiry_depth),
+        submission_mode=submission_map.get(data.submission_mode, data.submission_mode),
+        duration_weeks=data.duration_weeks,
+        depth_guidance=depth_guidance,
+        template_json=template_json,
+        rag_context=rag_context,
     )
-
-    if rag_context:
-        user_prompt += f"\nSubject-specific context (reference only):\n{rag_context}\n"
+    system_prompt, user_prompt = build_assignment_preview_prompt(prompt_context)
 
     try:
         raw_payload = client.predict_json(system_prompt, user_prompt)
@@ -1426,39 +1407,21 @@ def _generate_ai_content_from_lesson_plan(
     lesson_plan_excerpt = _summarize_text(lesson_plan_text, max_length=2800)
     template_json = json.dumps(template_phases, ensure_ascii=False, indent=2)
 
-    system_prompt = (
-        "You are an expert curriculum-to-assignment converter for K12 teachers. "
-        "Read a lesson plan and produce a practical assignment draft. "
-        "Return exactly one JSON object with keys: objectives, phases, rubric. "
-        "Preserve lesson-plan intent and scenario continuity. "
-        "Use realistic classroom language, concise wording, and actionable checkpoints."
+    prompt_context = LessonPlanPromptContext(
+        title=data.title,
+        topic=data.topic,
+        school_stage=str(data.school_stage),
+        grade=data.grade,
+        assignment_type=str(data.assignment_type),
+        inquiry_depth=str(data.inquiry_depth),
+        submission_mode=str(data.submission_mode),
+        duration_weeks=data.duration_weeks,
+        main_subject=main_subject_label,
+        related_subjects=related_subjects_label,
+        lesson_plan_excerpt=lesson_plan_excerpt,
+        template_json=template_json,
     )
-
-    user_prompt = (
-        "Task: convert this lesson plan into a student assignment draft.\n"
-        "Follow constraints:\n"
-        "- objectives includes knowledge/process/emotion\n"
-        "- phases includes name/order/steps\n"
-        "- each phase should include a scenario title that naturally continues from previous phase\n"
-        "- each step includes name/description/checkpoints\n"
-        "- step.description should be a learning scaffold sentence with context and hint\n"
-        "- each checkpoint includes content/evidence_type (text/document/image/video/confirm/link)\n"
-        "- rubric includes 5-6 dimensions with levels excellent/good/pass/improve\n"
-        "- keep progression from task understanding to evidence production and reflection\n\n"
-        f"Seed profile:\n- title={data.title}\n- topic={data.topic}\n"
-        f"- school_stage={data.school_stage}\n- grade={data.grade}\n"
-        f"- assignment_type={data.assignment_type}\n- inquiry_depth={data.inquiry_depth}\n"
-        f"- submission_mode={data.submission_mode}\n- duration_weeks={data.duration_weeks}\n"
-        f"- main_subject={main_subject_label}\n- related_subjects={related_subjects_label}\n\n"
-        "Lesson plan excerpt:\n"
-        f"{lesson_plan_excerpt}\n\n"
-        "Structure template (keep compatible order/shape, enrich content):\n"
-        f"{template_json}\n\n"
-        "Quality constraints:\n"
-        "- keep each step concise and practical for classroom execution\n"
-        "- each step checkpoints count should be 1-2 only\n"
-        "- avoid generic placeholders and repeated slogans\n"
-    )
+    system_prompt, user_prompt = build_lesson_plan_prompt(prompt_context)
 
     try:
         raw_payload = client.predict_json(system_prompt, user_prompt)
