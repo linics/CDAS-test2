@@ -5,8 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, List, Optional, Tuple, cast
 
-from chromadb import PersistentClient
-from chromadb.errors import InvalidArgumentError
+try:
+    from chromadb import PersistentClient
+    from chromadb.errors import InvalidArgumentError
+except Exception:  # pragma: no cover - optional runtime dependency on some CI hosts
+    PersistentClient = None  # type: ignore[assignment]
+
+    class InvalidArgumentError(Exception):
+        pass
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
@@ -34,6 +40,11 @@ class InventoryService:
     @property
     def chroma_client(self):
         if self._chroma_client is None:
+            if PersistentClient is None:
+                raise RuntimeError(
+                    "ChromaDB unavailable in current environment. "
+                    "Install compatible sqlite/chromadb runtime first."
+                )
             self._chroma_client = PersistentClient(path=str(self.settings.chroma_persist_dir))
         return self._chroma_client
 
