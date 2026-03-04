@@ -2,6 +2,7 @@
 
 from datetime import datetime, timezone
 import json
+import logging
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -22,9 +23,11 @@ from app.models import (
 )
 from app.api.v2.auth import get_current_user, require_teacher
 from app.prompts.evaluation_prompts import EvaluationPromptContext, build_evaluation_prompt
+from app.prompts.registry import EVALUATION_AI_ASSIST_PROMPT
 from app.services.ai import DeepSeekJSONClient
 
 router = APIRouter()
+logger = logging.getLogger("cdas.api")
 
 
 # === Schemas ===
@@ -473,6 +476,11 @@ async def ai_assist_evaluation(
 
     settings = get_settings()
     client = DeepSeekJSONClient(settings, temperature=0.2, max_output_tokens=1200)
+    logger.info(
+        "ai_assist called prompt=%s target=%s",
+        EVALUATION_AI_ASSIST_PROMPT.log_label(),
+        EVALUATION_AI_ASSIST_PROMPT.target_api,
+    )
     suggestion: AIEvaluationSuggestion | None = None
     if client.is_available:
         try:

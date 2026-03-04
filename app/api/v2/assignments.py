@@ -37,6 +37,7 @@ from app.prompts.assignment_prompts import (
     build_assignment_preview_prompt,
     build_lesson_plan_prompt,
 )
+from app.prompts.registry import ASSIGNMENT_LESSON_PLAN_PROMPT, ASSIGNMENT_PREVIEW_PROMPT
 from app.services.ai import DeepSeekJSONClient
 from app.services.inventory import InventoryService
 from app.utils.text_processing import parse_document
@@ -1267,7 +1268,11 @@ def _default_rubric(assignment_type: AssignmentType) -> Dict[str, Any]:
 def _generate_ai_content(data: AssignmentCreate) -> tuple[Dict[str, Any], List[Dict[str, Any]], Dict[str, Any]]:
     settings = get_settings()
     client = DeepSeekJSONClient(settings)
-    _log_ai_debug("generate_called")
+    _log_ai_debug(
+        "generate_called "
+        f"prompt={ASSIGNMENT_PREVIEW_PROMPT.log_label()} "
+        f"target={ASSIGNMENT_PREVIEW_PROMPT.target_api}"
+    )
     template_phases = _get_template_phases(data)
     default_objectives = _default_objectives(data)
     default_rubric = _default_rubric(data.assignment_type)
@@ -1389,7 +1394,11 @@ def _generate_ai_content_from_lesson_plan(
 ) -> tuple[Dict[str, Any], List[Dict[str, Any]], Dict[str, Any]]:
     settings = get_settings()
     client = DeepSeekJSONClient(settings, temperature=0.1, max_output_tokens=1600, request_timeout=25)
-    _log_ai_debug("generate_from_lesson_plan_called")
+    _log_ai_debug(
+        "generate_from_lesson_plan_called "
+        f"prompt={ASSIGNMENT_LESSON_PLAN_PROMPT.log_label()} "
+        f"target={ASSIGNMENT_LESSON_PLAN_PROMPT.target_api}"
+    )
 
     template_phases = _get_template_phases(data)
     default_objectives = _default_objectives(data)
